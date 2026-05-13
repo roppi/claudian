@@ -12,6 +12,7 @@ import type {
   ChatTurnRequest,
   ExitPlanModeCallback,
   PreparedChatTurn,
+  SessionIdResolvedCallback,
   SessionUpdateResult,
   SubagentRuntimeState,
 } from './types';
@@ -51,6 +52,7 @@ export interface ChatRuntime {
   setPermissionModeSyncCallback(callback: ((sdkMode: string) => void) | null): void;
   setSubagentHookProvider(getState: () => SubagentRuntimeState): void;
   setAutoTurnCallback(callback: AutoTurnCallback | null): void;
+  setSessionIdResolvedCallback(callback: SessionIdResolvedCallback | null): void;
   consumeTurnMetadata(): ChatTurnMetadata;
 
   buildSessionUpdates(params: {

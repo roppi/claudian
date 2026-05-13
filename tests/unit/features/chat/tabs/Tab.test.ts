@@ -1438,6 +1438,7 @@ describe('Tab - Service Callbacks', () => {
         setExitPlanModeCallback: jest.fn(),
         setSubagentHookProvider: jest.fn(),
         setAutoTurnCallback: jest.fn(),
+        setSessionIdResolvedCallback: jest.fn(),
         setPermissionModeSyncCallback: jest.fn(),
       };
       tab.service = service as any;

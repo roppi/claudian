@@ -186,7 +186,7 @@ describe('appendJournalEntry', () => {
 describe('updateJournalEntryTitle', () => {
   it('replaces the placeholder title with the new title in place', async () => {
     const vault = plainFakeVault({
-      'j.md': '## Sessions\n- 05:35 [conv-X](/p) （タイトル生成中）\n',
+      'j.md': '## Sessions\n- 05:35 [conv-X](/p) Start Session\n',
     });
     await updateJournalEntryTitle({
       vault,

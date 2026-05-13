@@ -99,7 +99,7 @@ export interface UpdateJournalEntryTitleParams {
 /**
  * Swap the title of an existing journal entry for `convId`. Used when the
  * AI-generated title arrives after the entry has already been appended with
- * the "（タイトル生成中）" placeholder.
+ * the {@link TITLE_PENDING_PLACEHOLDER} placeholder.
  *
  * Silently does nothing when the file or the conv-id can't be found, so
  * this is safe to call from a title-generation callback that might fire

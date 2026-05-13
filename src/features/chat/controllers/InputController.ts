@@ -1120,8 +1120,14 @@ export class InputController {
    *
    * Phase 1 supports the Claude provider only (the SDK jsonl path is provider-
    * specific). Other providers silently skip.
+   *
+   * `sessionIdOverride` lets early callers (e.g. the runtime's session_init
+   * listener) supply the SDK session id before it has been persisted onto
+   * `conv.sessionId`. Without it, the first sendMessage of a new conversation
+   * would be skipped because `conv.sessionId` is still `null` at that point
+   * (the SDK only reveals the id once a turn is in flight). See B4-bug-1.
    */
-  private async maybeAppendToDailyJournal(): Promise<void> {
+  async maybeAppendToDailyJournal(sessionIdOverride?: string): Promise<void> {
     const { plugin, state } = this.deps;
     if (!plugin.settings.enableDailyJournal) return;
     if (!state.currentConversationId) return;
@@ -1129,14 +1135,15 @@ export class InputController {
     const conv = plugin.getConversationSync(state.currentConversationId);
     if (!conv) return;
     if (conv.providerId !== 'claude') return;
-    if (!conv.sessionId) return;
+    const resolvedSessionId = sessionIdOverride ?? conv.sessionId;
+    if (!resolvedSessionId) return;
 
     const vaultPath = getVaultPath(plugin.app);
     if (!vaultPath) return;
 
     let jsonlPath: string;
     try {
-      jsonlPath = getSDKSessionPath(vaultPath, conv.sessionId);
+      jsonlPath = getSDKSessionPath(vaultPath, resolvedSessionId);
     } catch {
       return;
     }
@@ -1152,11 +1159,17 @@ export class InputController {
       ? new Date(conv.createdAt)
       : undefined;
 
+    // Always use the fixed placeholder at append time, even when the
+    // conversation already has a fallback or AI-generated title:
+    // `maybeUpdateDailyJournalTitle` swaps it in once the title-generation
+    // callback fires. Keeping a stable placeholder here means a journal
+    // viewer sees a consistent "session-start" marker before titles resolve,
+    // independent of how the fallback title happens to read.
     const entry = formatJournalEntry({
       time: now,
       convId: conv.id,
       jsonlPath,
-      title: conv.title || TITLE_PENDING_PLACEHOLDER,
+      title: TITLE_PENDING_PLACEHOLDER,
       continuedFrom,
     });
 
@@ -1175,8 +1188,8 @@ export class InputController {
 
   /**
    * Swap the title of an already-appended journal entry. Called from the
-   * title-generation success callback so the placeholder
-   * "（タイトル生成中）" is replaced with the AI-resolved title.
+   * title-generation success callback so the {@link TITLE_PENDING_PLACEHOLDER}
+   * placeholder is replaced with the AI-resolved title.
    *
    * Resolves the journal path with **the current date** at callback time —
    * which matches the day on which the title was generated. If the title

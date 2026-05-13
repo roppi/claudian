@@ -4,8 +4,13 @@
  * No I/O, no Obsidian dependency — this module is fully unit-testable.
  */
 
-/** Placeholder used when the AI title hasn't been generated yet. */
-export const TITLE_PENDING_PLACEHOLDER = '（タイトル生成中）';
+/**
+ * Placeholder used as the journal entry title before the AI-generated title
+ * arrives. Kept as a fixed English string so it sorts cleanly in journal
+ * scans regardless of locale, and is replaced verbatim by
+ * `updateJournalEntryTitle` once the title-generation callback fires.
+ */
+export const TITLE_PENDING_PLACEHOLDER = 'Start Session';
 
 export interface JournalEntryParams {
   /** Conversation creation time (local). The HH:MM prefix is derived from this. */

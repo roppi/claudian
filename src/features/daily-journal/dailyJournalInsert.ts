@@ -75,7 +75,7 @@ function appendAtEnd(content: string, entry: string): string {
  * `[conv-XXX](path)` link verbatim.
  *
  * Used by the title-confirmation callback to swap the
- * "（タイトル生成中）" placeholder for the AI-resolved title without
+ * {@link TITLE_PENDING_PLACEHOLDER} for the AI-resolved title without
  * having to remember the original write time.
  */
 export function replaceTitleInEntry(
@@ -98,7 +98,7 @@ export function replaceTitleInEntry(
 /**
  * Replaces the first line containing `convId` with `newEntry`, preserving
  * surrounding lines verbatim. Used by the title-confirmation callback to
- * swap a "（タイトル生成中）" placeholder line for the resolved entry —
+ * swap a {@link TITLE_PENDING_PLACEHOLDER} line for the resolved entry —
  * regenerating the whole line keeps the logic agnostic to optional
  * elements like the cross-day label.
  *

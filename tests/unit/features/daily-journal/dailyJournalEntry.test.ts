@@ -64,7 +64,13 @@ describe('formatJournalEntry', () => {
         jsonlPath: '/p',
         title: TITLE_PENDING_PLACEHOLDER,
       }),
-    ).toContain('（タイトル生成中）');
+    ).toContain('Start Session');
+  });
+
+  it('exposes the placeholder as a stable English string', () => {
+    // The placeholder is exposed externally (e.g. for journal scanners),
+    // so lock the literal value to catch accidental rewording in PRs.
+    expect(TITLE_PENDING_PLACEHOLDER).toBe('Start Session');
   });
 });
 

@@ -102,7 +102,7 @@ describe('replaceEntryLine', () => {
     const content = [
       '## Sessions',
       '- 04:00 [conv-A](/a) earlier',
-      '- 05:35 [conv-B](/b) （タイトル生成中）',
+      '- 05:35 [conv-B](/b) Start Session',
       '- 06:00 [conv-C](/c) other',
       '',
     ].join('\n');
@@ -122,7 +122,7 @@ describe('replaceEntryLine', () => {
     // The new entry from the caller already contains the correct label —
     // replaceEntryLine just swaps the whole line, so labels are preserved
     // as long as the caller built newEntry with them.
-    const content = '- 05:35 (↳ 5/12 17:15) [conv-B](/b) （タイトル生成中）\n';
+    const content = '- 05:35 (↳ 5/12 17:15) [conv-B](/b) Start Session\n';
     const newEntry = '- 05:35 (↳ 5/12 17:15) [conv-B](/b) Real Title';
     expect(replaceEntryLine(content, 'conv-B', newEntry)).toBe(
       '- 05:35 (↳ 5/12 17:15) [conv-B](/b) Real Title\n',
@@ -159,14 +159,14 @@ describe('replaceEntryLine', () => {
 
 describe('replaceTitleInEntry', () => {
   it('swaps the title while keeping HH:MM and the conv-id link', () => {
-    const content = '- 05:35 [conv-X](/p) （タイトル生成中）\n';
+    const content = '- 05:35 [conv-X](/p) Start Session\n';
     expect(replaceTitleInEntry(content, 'conv-X', 'Real Title')).toBe(
       '- 05:35 [conv-X](/p) Real Title\n',
     );
   });
 
   it('preserves the cross-day label position when present', () => {
-    const content = '- 05:35 (↳ 5/12 17:15) [conv-X](/p) （タイトル生成中）\n';
+    const content = '- 05:35 (↳ 5/12 17:15) [conv-X](/p) Start Session\n';
     expect(replaceTitleInEntry(content, 'conv-X', 'Continued Plan')).toBe(
       '- 05:35 (↳ 5/12 17:15) [conv-X](/p) Continued Plan\n',
     );
