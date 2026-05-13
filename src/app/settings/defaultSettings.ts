@@ -57,7 +57,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   dailyJournalSectionMarker: '',
 
   enableSessionStore: false,
-  sessionStoreRootDir: '.claudian/transcripts',
+  sessionStoreRootDir: 'transcription',
 
   hiddenProviderCommands: getDefaultHiddenProviderCommands(),
 };

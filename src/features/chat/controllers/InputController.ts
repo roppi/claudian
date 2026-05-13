@@ -1141,9 +1141,20 @@ export class InputController {
     const vaultPath = getVaultPath(plugin.app);
     if (!vaultPath) return;
 
+    // When the SessionStore adapter is enabled (cross-machine session
+    // portability, Phase 2), transcripts are mirrored to a Vault-relative
+    // directory and travel with the Vault. The journal link should point
+    // at that copy so the entry stays openable from any machine that
+    // checked out the Vault; falling back to the SDK-native absolute path
+    // only when SessionStore is off (original Phase 1 behavior).
     let jsonlPath: string;
     try {
-      jsonlPath = getSDKSessionPath(vaultPath, resolvedSessionId);
+      if (plugin.settings.enableSessionStore) {
+        const rootDir = plugin.settings.sessionStoreRootDir || 'transcription';
+        jsonlPath = `${rootDir}/${resolvedSessionId}.jsonl`;
+      } else {
+        jsonlPath = getSDKSessionPath(vaultPath, resolvedSessionId);
+      }
     } catch {
       return;
     }

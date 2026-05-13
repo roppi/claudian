@@ -391,7 +391,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.sessionStoreRootDir.desc'))
       .addText((text) =>
         text
-          .setPlaceholder('.claudian/transcripts')
+          .setPlaceholder('transcription')
           .setValue(this.plugin.settings.sessionStoreRootDir ?? '')
           .onChange(async (value) => {
             this.plugin.settings.sessionStoreRootDir = value;

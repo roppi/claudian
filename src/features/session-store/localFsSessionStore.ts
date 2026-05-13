@@ -26,9 +26,10 @@ export interface LocalFsSessionStoreOptions {
   fs: SessionStoreFs;
   /**
    * Vault-relative root directory for transcript files, e.g.
-   * `'.claudian/transcripts'`. The adapter writes main transcripts as
+   * `'transcription'`. The adapter writes main transcripts as
    * `{rootDir}/{sessionId}.jsonl` and subpath transcripts as
-   * `{rootDir}/{sessionId}/{subpath}.jsonl`.
+   * `{rootDir}/{sessionId}/{subpath}.jsonl`. The default lives at
+   * `defaultSettings.sessionStoreRootDir`.
    */
   rootDir: string;
 }

@@ -84,7 +84,7 @@ function fakeFs(initial: Record<string, string> = {}): SessionStoreFs & {
   };
 }
 
-const ROOT = '.claudian/transcripts';
+const ROOT = 'transcription';
 const PROJECT_KEY = 'vault'; // fixed-value mapping (R-7)
 
 function makeStore(initial: Record<string, string> = {}): {
