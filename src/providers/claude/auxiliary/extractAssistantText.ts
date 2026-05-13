@@ -1,8 +1,19 @@
+// `message` is typed as `unknown` because the SDK's `SDKMessage` union now
+// includes shapes like `SDKPermissionDeniedMessage` where `message` is a
+// `string`. Narrow inside the function so callers can pass any union member
+// without an unsafe cast at the call site.
 export function extractAssistantText(
-  message: { type: string; message?: { content?: unknown } }
+  message: { type: string; message?: unknown }
 ): string {
-  const content = message.message?.content;
-  if (message.type !== 'assistant' || !Array.isArray(content)) {
+  if (message.type !== 'assistant') {
+    return '';
+  }
+  const inner = message.message;
+  if (!inner || typeof inner !== 'object') {
+    return '';
+  }
+  const content = (inner as { content?: unknown }).content;
+  if (!Array.isArray(content)) {
     return '';
   }
 
