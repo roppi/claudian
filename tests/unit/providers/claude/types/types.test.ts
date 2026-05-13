@@ -103,6 +103,8 @@ describe('types.ts', () => {
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         dailyJournalSectionMarker: '',
+        enableSessionStore: false,
+        sessionStoreRootDir: '.claudian/transcripts',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -162,6 +164,8 @@ describe('types.ts', () => {
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         dailyJournalSectionMarker: '',
+        enableSessionStore: false,
+        sessionStoreRootDir: '.claudian/transcripts',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -222,6 +226,8 @@ describe('types.ts', () => {
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         dailyJournalSectionMarker: '',
+        enableSessionStore: false,
+        sessionStoreRootDir: '.claudian/transcripts',
         hiddenProviderCommands: {
           claude: [],
           codex: [],

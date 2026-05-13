@@ -56,5 +56,8 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   dailyJournalPathTemplate: '{{date:YYYY-MM-DD}}.md',
   dailyJournalSectionMarker: '',
 
+  enableSessionStore: false,
+  sessionStoreRootDir: '.claudian/transcripts',
+
   hiddenProviderCommands: getDefaultHiddenProviderCommands(),
 };
