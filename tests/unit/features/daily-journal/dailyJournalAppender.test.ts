@@ -146,9 +146,9 @@ describe('appendJournalEntry', () => {
       expect(modifyCalls).toHaveLength(1);
     });
 
-    it('uses the default 200ms wait if templaterWaitMs is not provided', async () => {
-      // We don't actually wait 200ms; we just verify that sleep is called
-      // with the default value when no override is given.
+    it('uses the default 500ms wait if templaterWaitMs is not provided', async () => {
+      // We don't actually wait — sleep is injected, so the test just
+      // verifies which value is passed to it.
       const waits: number[] = [];
       const vault = plainFakeVault();
       await appendJournalEntry({
@@ -161,7 +161,7 @@ describe('appendJournalEntry', () => {
           waits.push(ms);
         },
       });
-      expect(waits).toEqual([200]);
+      expect(waits).toEqual([500]);
     });
 
     it('respects a custom templaterWaitMs', async () => {

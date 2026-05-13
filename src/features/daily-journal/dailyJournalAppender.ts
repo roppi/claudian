@@ -30,7 +30,12 @@ export interface AppendJournalEntryParams {
   templaterWaitMs?: number;
 }
 
-const DEFAULT_TEMPLATER_WAIT_MS = 200;
+// 500ms was chosen empirically: 200ms was too short on at least one Windows
+// real-vault test where Templater's on_file_creation hook hadn't finished
+// writing the folder template before Claudian re-read the file. Because
+// this appender runs fire-and-forget from sendMessage, longer waits don't
+// delay user-visible UX.
+const DEFAULT_TEMPLATER_WAIT_MS = 500;
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
