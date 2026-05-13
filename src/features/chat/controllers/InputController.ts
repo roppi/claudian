@@ -30,6 +30,7 @@ import type { CanvasSelectionContext } from '../../../utils/canvas';
 import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
+import { playCompletionSound } from '../../../utils/notificationSound';
 import { getVaultPath } from '../../../utils/path';
 import {
   appendJournalEntry,
@@ -1500,6 +1501,14 @@ export class InputController {
     signal?: AbortSignal,
     config?: InlineAskQuestionConfig,
   ): Promise<Record<string, string | string[]> | null> {
+    // Inline ask/approval prompts are a "hand-back-to-user" event that the SDK
+    // never marks with a `'done'` chunk — reuse the completion-sound hook here
+    // so background users notice the wait state regardless of which inline
+    // surface (AskUserQuestion / approval / exit-plan) opens.
+    playCompletionSound({
+      enabled: this.deps.plugin.settings.enableCompletionSound,
+      volume: this.deps.plugin.settings.completionSoundVolume,
+    });
     this.deps.streamController.hideThinkingIndicator();
     this.hideInputContainer(inputContainerEl);
 
@@ -1537,6 +1546,13 @@ export class InputController {
       throw new Error('Input container is detached from DOM');
     }
 
+    // Exit-plan-mode uses its own inline surface (InlineExitPlanMode) outside
+    // showInlineQuestion, but the UX intent is the same hand-back-to-user
+    // moment, so emit the completion sound here as well.
+    playCompletionSound({
+      enabled: this.deps.plugin.settings.enableCompletionSound,
+      volume: this.deps.plugin.settings.completionSoundVolume,
+    });
     streamController.hideThinkingIndicator();
     this.hideInputContainer(inputContainerEl);
 
@@ -1601,6 +1617,13 @@ export class InputController {
       return Promise.resolve({ decision: null, invalidated: false });
     }
 
+    // Post-plan approval is another hand-back-to-user moment (the agent
+    // finished planning and is waiting on the user's go/no-go), so reuse the
+    // same completion-sound hook here.
+    playCompletionSound({
+      enabled: this.deps.plugin.settings.enableCompletionSound,
+      volume: this.deps.plugin.settings.completionSoundVolume,
+    });
     this.hideInputContainer(inputContainerEl);
     this.pendingPlanApprovalInvalidated = false;
 

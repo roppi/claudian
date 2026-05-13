@@ -10,6 +10,10 @@ jest.mock('@/shared/components/ResumeSessionDropdown', () => ({
   ResumeSessionDropdown: jest.fn(),
 }));
 
+jest.mock('@/utils/notificationSound', () => ({
+  playCompletionSound: jest.fn(),
+}));
+
 beforeAll(() => {
   globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
     cb(0);
@@ -125,6 +129,8 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
       settings: {
         permissionMode: 'yolo',
         enableAutoTitleGeneration: true,
+        enableCompletionSound: true,
+        completionSoundVolume: 1,
       },
       mcpManager: {
         extractMentions: jest.fn().mockReturnValue(new Set()),
@@ -2462,6 +2468,89 @@ describe('InputController - Message Queue', () => {
       controller.dismissPendingApproval();
       await expect(exitPlanPromise).resolves.toBeNull();
       expect(inputContainerEl.style.display).toBe('');
+    });
+  });
+
+  describe('completion sound on user-input prompts', () => {
+    // Mirrors StreamController's `'done'` chunk hook: signal the user that the
+    // turn has handed back control. Inline prompts (ask-user-question, approval,
+    // exit-plan-mode) are functionally equivalent "waiting for you" states that
+    // never reach the `'done'` chunk, so they need their own hook.
+    function setupParentedContainer(deps: InputControllerDeps): { parentEl: any; inputContainerEl: any } {
+      const parentEl = createMockEl();
+      const inputContainerEl = createMockEl();
+      (inputContainerEl as any).parentElement = parentEl;
+      deps.getInputContainerEl = () => inputContainerEl as any;
+      return { parentEl, inputContainerEl };
+    }
+
+    it('plays the completion sound when an ask-user-question prompt is shown', async () => {
+      const { playCompletionSound } = jest.requireMock('@/utils/notificationSound');
+      setupParentedContainer(deps);
+      controller = new InputController(deps);
+
+      const askPromise = controller.handleAskUserQuestion({
+        questions: [{ question: 'Pick one', options: ['A', 'B'] }],
+      });
+
+      expect(playCompletionSound).toHaveBeenCalledTimes(1);
+      expect(playCompletionSound).toHaveBeenCalledWith({
+        enabled: true,
+        volume: 1,
+      });
+
+      controller.dismissPendingApproval();
+      await askPromise;
+    });
+
+    it('plays the completion sound when an approval-request prompt is shown', async () => {
+      const { playCompletionSound } = jest.requireMock('@/utils/notificationSound');
+      setupParentedContainer(deps);
+      controller = new InputController(deps);
+
+      const approvalPromise = controller.handleApprovalRequest(
+        'bash',
+        { command: 'ls -la' },
+        'Run shell command',
+      );
+
+      expect(playCompletionSound).toHaveBeenCalledTimes(1);
+
+      controller.dismissPendingApproval();
+      await approvalPromise;
+    });
+
+    it('plays the completion sound when an exit-plan-mode prompt is shown', async () => {
+      const { playCompletionSound } = jest.requireMock('@/utils/notificationSound');
+      setupParentedContainer(deps);
+      controller = new InputController(deps);
+
+      const exitPlanPromise = controller.handleExitPlanMode({});
+
+      expect(playCompletionSound).toHaveBeenCalledTimes(1);
+
+      controller.dismissPendingApproval();
+      await exitPlanPromise;
+    });
+
+    it('forwards user-configured completion sound settings to the player', async () => {
+      const { playCompletionSound } = jest.requireMock('@/utils/notificationSound');
+      deps.plugin.settings.enableCompletionSound = false;
+      deps.plugin.settings.completionSoundVolume = 0.4;
+      setupParentedContainer(deps);
+      controller = new InputController(deps);
+
+      const askPromise = controller.handleAskUserQuestion({
+        questions: [{ question: 'Pick one', options: ['A', 'B'] }],
+      });
+
+      expect(playCompletionSound).toHaveBeenCalledWith({
+        enabled: false,
+        volume: 0.4,
+      });
+
+      controller.dismissPendingApproval();
+      await askPromise;
     });
   });
 
