@@ -46,6 +46,41 @@ const patchCodexSdkImportMeta = {
   },
 };
 
+// Claude Agent SDK 0.2.113+ ships ESM `.mjs` modules. When esbuild
+// bundles them into our CJS `main.js`, it auto-generates a CJS-interop
+// shim that calls `createRequire(import.meta.url)` and
+// `fileURLToPath(import.meta.url)`. `import.meta.url` is rewritten to a
+// local `import_meta.url` reference whose underlying object is never
+// populated in the CJS runtime, so the call throws at plugin load
+// (`Plugin failure: claudian TypeError: The argument 'filename' must
+// be a file URL object ...`). The source `.mjs` files themselves
+// contain no such call, so an `onLoad` substitution doesn't help; we
+// patch the bundled output instead.
+//
+// We can't simply rewrite `import_meta.url` to `__filename` because
+// `fileURLToPath` requires a file URL string, not a path. Instead we
+// inject a one-time computation of the bundle's file URL via
+// `pathToFileURL(__filename).href` and route every `import_meta.url`
+// reference through it.
+const patchBundleImportMeta = {
+  name: 'patch-bundle-import-meta',
+  setup(build) {
+    build.onEnd(async (result) => {
+      if (result.errors.length > 0 || !existsSync('main.js')) return;
+      const bundlePath = path.join(process.cwd(), 'main.js');
+      const original = await fsPromises.readFile(bundlePath, 'utf8');
+      if (!original.includes('import_meta.url')) return;
+      const replaced = original.replace(
+        /import_meta\.url/g,
+        "require('url').pathToFileURL(__filename).href",
+      );
+      if (replaced !== original) {
+        await fsPromises.writeFile(bundlePath, replaced, 'utf8');
+      }
+    });
+  },
+};
+
 const patchRendererUnsafeUnref = {
   name: 'patch-renderer-unsafe-unref',
   setup(build) {
@@ -112,7 +147,7 @@ const copyToObsidian = {
 const context = await esbuild.context({
   entryPoints: ['src/main.ts'],
   bundle: true,
-  plugins: [patchCodexSdkImportMeta, patchRendererUnsafeUnref, copyToObsidian],
+  plugins: [patchCodexSdkImportMeta, patchBundleImportMeta, patchRendererUnsafeUnref, copyToObsidian],
   external: [
     'obsidian',
     'electron',
