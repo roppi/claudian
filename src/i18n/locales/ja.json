@@ -305,7 +305,7 @@
     },
     "dailyJournalPathTemplate": {
       "name": "日報ファイルのパス",
-      "desc": "日報ファイルのパステンプレート。例: 00_common/09_agent/journal/{{date:YYMMDD}}.md。使える日付トークン: YYYY YY MM DD"
+      "desc": "日報ファイルのパステンプレート。例: {{date:YYYY-MM-DD}}.md。使える日付トークン: YYYY YY MM DD"
     },
     "dailyJournalSectionMarker": {
       "name": "日報のセクションマーカー",

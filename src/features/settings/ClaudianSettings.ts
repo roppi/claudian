@@ -18,6 +18,14 @@ import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSectio
 
 type SettingsTabId = 'general' | ProviderId;
 
+/**
+ * Default example template seeded into `userPromptTemplate` the first time
+ * the user enables the feature. Also used as the textarea placeholder so the
+ * empty-toggle-off and freshly-enabled states show the same content.
+ */
+const DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE =
+  '[{{now}}] {{user_prompt}}\n\nToday: {{daily_journal_path}}';
+
 function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
   const isMac = navigator.platform.includes('Mac');
   const modMap: Record<string, string> = isMac
@@ -304,7 +312,14 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.enableUserPromptTemplate ?? false)
           .onChange(async (value) => {
             this.plugin.settings.enableUserPromptTemplate = value;
+            // Seed the template with the example the first time the user
+            // turns this on; otherwise toggling ON with an empty template
+            // would be a no-op (the appliers early-return on empty).
+            if (value && !this.plugin.settings.userPromptTemplate) {
+              this.plugin.settings.userPromptTemplate = DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE;
+            }
             await this.plugin.saveSettings();
+            this.display();
           })
       );
 
@@ -313,7 +328,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.userPromptTemplate.desc'))
       .addTextArea((textArea) =>
         textArea
-          .setPlaceholder('[{{now}}] {{user_prompt}}\n\nToday: {{daily_journal_path}}')
+          .setPlaceholder(DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE)
           .setValue(this.plugin.settings.userPromptTemplate ?? '')
           .onChange(async (value) => {
             this.plugin.settings.userPromptTemplate = value;
@@ -338,7 +353,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.dailyJournalPathTemplate.desc'))
       .addText((text) =>
         text
-          .setPlaceholder('00_common/09_agent/journal/{{date:YYMMDD}}.md')
+          .setPlaceholder('{{date:YYYY-MM-DD}}.md')
           .setValue(this.plugin.settings.dailyJournalPathTemplate ?? '')
           .onChange(async (value) => {
             this.plugin.settings.dailyJournalPathTemplate = value;

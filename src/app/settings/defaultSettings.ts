@@ -53,7 +53,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   enableUserPromptTemplate: false,
   userPromptTemplate: '',
   enableDailyJournal: true,
-  dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
+  dailyJournalPathTemplate: '{{date:YYYY-MM-DD}}.md',
   dailyJournalSectionMarker: '',
 
   hiddenProviderCommands: getDefaultHiddenProviderCommands(),

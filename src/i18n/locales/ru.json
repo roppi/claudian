@@ -305,7 +305,7 @@
     },
     "dailyJournalPathTemplate": {
       "name": "Daily journal path",
-      "desc": "Path template for the journal file. Example: 00_common/09_agent/journal/{{date:YYMMDD}}.md. Date tokens: YYYY YY MM DD."
+      "desc": "Path template for the journal file. Example: {{date:YYYY-MM-DD}}.md. Date tokens: YYYY YY MM DD."
     },
     "dailyJournalSectionMarker": {
       "name": "Daily journal section marker",
