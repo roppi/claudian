@@ -541,7 +541,7 @@ describe('QueryOptionsBuilder', () => {
       expect(options.additionalDirectories).toBeUndefined();
     });
 
-    it('always enables file checkpointing', () => {
+    it('enables file checkpointing when no SessionStore is provided', () => {
       const ctx = {
         ...createMockContext(),
         abortController: new AbortController(),
@@ -550,6 +550,29 @@ describe('QueryOptionsBuilder', () => {
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
       expect(options.enableFileCheckpointing).toBe(true);
+      expect(options.sessionStore).toBeUndefined();
+    });
+
+    it('disables file checkpointing and wires the SessionStore when provided', () => {
+      // SessionStore and enableFileCheckpointing are mutually exclusive in
+      // the SDK; the builder forces checkpointing off whenever a store is
+      // wired in so the SDK does not throw.
+      const fakeSessionStore = {
+        append: async () => {},
+        load: async () => null,
+      } as unknown as NonNullable<
+        Parameters<typeof QueryOptionsBuilder.buildPersistentQueryOptions>[0]['sessionStore']
+      >;
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        sessionStore: fakeSessionStore,
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.enableFileCheckpointing).toBe(false);
+      expect(options.sessionStore).toBe(fakeSessionStore);
     });
 
     it('sets resumeSessionAt when provided in resume', () => {

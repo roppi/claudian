@@ -1,19 +1,23 @@
 const UNSAFE_TIMER_UNREF_PATTERNS = [
   {
+    // Variable names inside the SDK's process-transport close path
+    // (`X`, `J`, …) are minifier output and change across SDK releases.
+    // Use a back-referenced identifier class so the patch survives any
+    // minifier renaming as long as the structural shape is unchanged.
     name: 'claude-sdk-process-transport-close',
-    pattern: /if \(\$ && !\$\.killed && \$\.exitCode === null\) setTimeout\(\(X\) => \{\s*if \(X\.killed \|\| X\.exitCode !== null\) return;\s*X\.kill\("SIGTERM"\), setTimeout\(\(J\) => \{\s*if \(J\.exitCode === null\) J\.kill\("SIGKILL"\);\s*\}, 5e3, X\)\.unref\(\);\s*\}, ([A-Za-z_$][A-Za-z0-9_$]*), \$\)\.unref\(\), \$\.once\("exit", (\(\) => (?:\{[^{}]*\}|[^;{}]+))\);/g,
+    pattern: /if \(\$ && !\$\.killed && \$\.exitCode === null\) setTimeout\(\(([A-Za-z_$][A-Za-z0-9_$]*)\) => \{\s*if \(\1\.killed \|\| \1\.exitCode !== null\) return;\s*\1\.kill\("SIGTERM"\), setTimeout\(\(([A-Za-z_$][A-Za-z0-9_$]*)\) => \{\s*if \(\2\.exitCode === null\) \2\.kill\("SIGKILL"\);\s*\}, 5e3, \1\)\.unref\(\);\s*\}, ([A-Za-z_$][A-Za-z0-9_$]*), \$\)\.unref\(\), \$\.once\("exit", (\(\) => (?:\{[^{}]*\}|[^;{}]+))\);/g,
     replacement:
       'if ($ && !$.killed && $.exitCode === null) {' +
-      '\n      const processKillTimer = setTimeout((X) => {' +
-      '\n        if (X.killed || X.exitCode !== null) return;' +
-      '\n        X.kill("SIGTERM");' +
-      '\n        const forceKillTimer = setTimeout((J) => {' +
-      '\n          if (J.exitCode === null) J.kill("SIGKILL");' +
-      '\n        }, 5e3, X);' +
+      '\n      const processKillTimer = setTimeout(($1) => {' +
+      '\n        if ($1.killed || $1.exitCode !== null) return;' +
+      '\n        $1.kill("SIGTERM");' +
+      '\n        const forceKillTimer = setTimeout(($2) => {' +
+      '\n          if ($2.exitCode === null) $2.kill("SIGKILL");' +
+      '\n        }, 5e3, $1);' +
       '\n        forceKillTimer.unref?.();' +
-      '\n      }, $1, $);' +
+      '\n      }, $3, $);' +
       '\n      processKillTimer.unref?.();' +
-      '\n      $.once("exit", $2);' +
+      '\n      $.once("exit", $4);' +
       '\n    }',
   },
   {

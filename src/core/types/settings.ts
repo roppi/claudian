@@ -162,6 +162,15 @@ export interface ClaudianSettings {
   // Notes / manual). The UI shows "## Sessions" as a placeholder.
   dailyJournalSectionMarker: string;
 
+  // Cross-machine session portability (feature/session-portability).
+  // When enabled, Claudian wires a SessionStore adapter into the Claude
+  // SDK so transcripts are mirrored to a Vault-relative directory and
+  // can be resumed from any machine that has the Vault. Turning this
+  // on disables `enableFileCheckpointing` because the two SDK features
+  // are mutually exclusive (the SDK throws if both are set).
+  enableSessionStore: boolean;
+  sessionStoreRootDir: string;
+
   // Provider command visibility
   hiddenProviderCommands: HiddenProviderCommands;
 

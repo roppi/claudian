@@ -2,6 +2,7 @@ import type {
   CanUseTool,
   Options,
   PermissionMode as SDKPermissionMode,
+  SessionStore,
 } from '@anthropic-ai/claude-agent-sdk';
 
 import type { McpServerManager } from '../../../core/mcp/McpServerManager';
@@ -36,6 +37,11 @@ export interface QueryOptionsContext {
   enhancedPath: string;
   mcpManager: McpServerManager;
   pluginManager: AppPluginManager;
+  // Optional SessionStore adapter for cross-machine transcript mirroring.
+  // When set, `enableFileCheckpointing` is forced off because the SDK
+  // throws if both options are enabled (file-history backup blobs are
+  // not mirrored to the store).
+  sessionStore?: SessionStore;
 }
 
 export interface PersistentQueryContext extends QueryOptionsContext {
@@ -153,7 +159,14 @@ export class QueryOptionsBuilder {
     QueryOptionsBuilder.applyThinking(options, ctx.settings, ctx.settings.model);
     options.hooks = ctx.hooks;
 
-    options.enableFileCheckpointing = true;
+    // SessionStore and file checkpointing are mutually exclusive — the SDK
+    // throws when both are set. When a store is provided we surrender
+    // rewindFiles in exchange for cross-machine resume; otherwise we keep
+    // the original behavior of enabling checkpointing.
+    options.enableFileCheckpointing = !ctx.sessionStore;
+    if (ctx.sessionStore) {
+      options.sessionStore = ctx.sessionStore;
+    }
 
     if (ctx.resume) {
       options.resume = ctx.resume.sessionId;
