@@ -102,6 +102,7 @@ describe('types.ts', () => {
         userPromptTemplate: '',
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
+        dailyJournalSectionMarker: '',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -160,6 +161,7 @@ describe('types.ts', () => {
         userPromptTemplate: '',
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
+        dailyJournalSectionMarker: '',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -219,6 +221,7 @@ describe('types.ts', () => {
         userPromptTemplate: '',
         enableDailyJournal: true,
         dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
+        dailyJournalSectionMarker: '',
         hiddenProviderCommands: {
           claude: [],
           codex: [],

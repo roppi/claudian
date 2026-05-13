@@ -307,6 +307,10 @@
       "name": "Daily journal path",
       "desc": "Path template for the journal file. Example: 00_common/09_agent/journal/{{date:YYMMDD}}.md. Date tokens: YYYY YY MM DD."
     },
+    "dailyJournalSectionMarker": {
+      "name": "Daily journal section marker",
+      "desc": "Optional heading line (e.g. \"## Sessions\") under which entries are appended. Leave empty to append at end of file. Structure is owned by you — Claudian only inserts the entry line."
+    },
     "chatViewPlacement": {
       "name": "Ouvrir Claudian dans",
       "desc": "Choisissez où le panneau de chat s'ouvre lors de sa création",

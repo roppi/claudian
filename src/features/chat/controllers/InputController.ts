@@ -1,4 +1,4 @@
-import { Notice } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 
 import {
   type BuiltInCommand,
@@ -22,6 +22,7 @@ import type {
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
 import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, StreamChunk } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
+import { getSDKSessionPath } from '../../../providers/claude/history/sdkSessionPaths';
 import { ResumeSessionDropdown } from '../../../shared/components/ResumeSessionDropdown';
 import { InstructionModal } from '../../../shared/modals/InstructionConfirmModal';
 import type { BrowserSelectionContext } from '../../../utils/browser';
@@ -29,6 +30,17 @@ import type { CanvasSelectionContext } from '../../../utils/canvas';
 import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
+import { getVaultPath } from '../../../utils/path';
+import {
+  appendJournalEntry,
+  updateJournalEntryTitle,
+} from '../../daily-journal/dailyJournalAppender';
+import {
+  formatJournalEntry,
+  isCrossDayContinuation,
+  TITLE_PENDING_PLACEHOLDER,
+} from '../../daily-journal/dailyJournalEntry';
+import { resolveJournalPath } from '../../daily-journal/dailyJournalPath';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
@@ -297,6 +309,10 @@ export class InputController {
     renderer.addMessage(userMsg);
 
     await this.triggerTitleGeneration();
+    // Fire-and-forget: the daily-journal append is a side-effect that must
+    // not delay the streaming response. Errors are swallowed by the method
+    // itself, so we just `void` the promise here.
+    void this.maybeAppendToDailyJournal();
 
     const assistantMsg: ChatMessage = {
       id: this.deps.generateId(),
@@ -1076,6 +1092,9 @@ export class InputController {
         if (result.success && !userManuallyRenamed) {
           await plugin.renameConversation(conversationId, result.title);
           await plugin.updateConversation(conversationId, { titleGenerationStatus: 'success' });
+          // Sync the daily-journal entry (best-effort). Skipped silently if
+          // journaling is disabled or the entry can't be found.
+          await this.maybeUpdateDailyJournalTitle(conversationId, result.title);
         } else if (!userManuallyRenamed) {
           // Keep fallback title, mark as failed (only if user hasn't renamed)
           await plugin.updateConversation(conversationId, { titleGenerationStatus: 'failed' });
@@ -1088,6 +1107,130 @@ export class InputController {
     ).catch(() => {
       // Silently ignore title generation errors
     });
+  }
+
+  // ============================================
+  // Daily Journal (feature/message-timestamp)
+  // ============================================
+
+  /**
+   * Append (idempotently) an entry to today's daily journal for the active
+   * conversation. Called from `sendMessage` on every turn — the appender is
+   * intentionally idempotent on conv id so re-running is cheap and safe.
+   *
+   * Phase 1 supports the Claude provider only (the SDK jsonl path is provider-
+   * specific). Other providers silently skip.
+   */
+  private async maybeAppendToDailyJournal(): Promise<void> {
+    const { plugin, state } = this.deps;
+    if (!plugin.settings.enableDailyJournal) return;
+    if (!state.currentConversationId) return;
+
+    const conv = plugin.getConversationSync(state.currentConversationId);
+    if (!conv) return;
+    if (conv.providerId !== 'claude') return;
+    if (!conv.sessionId) return;
+
+    const vaultPath = getVaultPath(plugin.app);
+    if (!vaultPath) return;
+
+    let jsonlPath: string;
+    try {
+      jsonlPath = getSDKSessionPath(vaultPath, conv.sessionId);
+    } catch {
+      return;
+    }
+
+    const journalPath = resolveJournalPath(
+      plugin.settings.dailyJournalPathTemplate ?? '',
+      new Date(),
+    );
+    if (!journalPath) return;
+
+    const now = new Date();
+    const continuedFrom = isCrossDayContinuation(new Date(conv.createdAt), now)
+      ? new Date(conv.createdAt)
+      : undefined;
+
+    const entry = formatJournalEntry({
+      time: now,
+      convId: conv.id,
+      jsonlPath,
+      title: conv.title || TITLE_PENDING_PLACEHOLDER,
+      continuedFrom,
+    });
+
+    try {
+      await appendJournalEntry({
+        vault: this.buildJournalVaultAdapter(),
+        filePath: journalPath,
+        sectionMarker: plugin.settings.dailyJournalSectionMarker ?? '',
+        entry,
+        convId: conv.id,
+      });
+    } catch {
+      // Journaling must never break the chat flow.
+    }
+  }
+
+  /**
+   * Swap the title of an already-appended journal entry. Called from the
+   * title-generation success callback so the placeholder
+   * "（タイトル生成中）" is replaced with the AI-resolved title.
+   *
+   * Resolves the journal path with **the current date** at callback time —
+   * which matches the day on which the title was generated. If the title
+   * callback lands on the next day (Templater-slow or user-idle case), the
+   * cross-day entry on the prior day's journal remains with the placeholder;
+   * that's a known Phase 1 limitation, accepted in exchange for simplicity.
+   */
+  private async maybeUpdateDailyJournalTitle(convId: string, newTitle: string): Promise<void> {
+    const { plugin } = this.deps;
+    if (!plugin.settings.enableDailyJournal) return;
+
+    const journalPath = resolveJournalPath(
+      plugin.settings.dailyJournalPathTemplate ?? '',
+      new Date(),
+    );
+    if (!journalPath) return;
+
+    try {
+      await updateJournalEntryTitle({
+        vault: this.buildJournalVaultAdapter(),
+        filePath: journalPath,
+        convId,
+        newTitle,
+      });
+    } catch {
+      // Silent fail — must not break the title-generation flow.
+    }
+  }
+
+  /**
+   * Build a JournalVault adapter that bridges Claudian's daily-journal module
+   * (which works on plain string paths) to the Obsidian `App.vault` API.
+   *
+   * Kept as a separate factory so tests for InputController could later mock
+   * the journal calls by overriding this method.
+   */
+  private buildJournalVaultAdapter() {
+    const vault = this.deps.plugin.app.vault;
+    return {
+      exists: (p: string) => vault.getAbstractFileByPath(p) !== null,
+      read: async (p: string) => {
+        const f = vault.getAbstractFileByPath(p);
+        if (!(f instanceof TFile)) return '';
+        return vault.read(f);
+      },
+      create: async (p: string, c: string) => {
+        await vault.create(p, c);
+      },
+      modify: async (p: string, c: string) => {
+        const f = vault.getAbstractFileByPath(p);
+        if (!(f instanceof TFile)) return;
+        await vault.modify(f, c);
+      },
+    };
   }
 
   // ============================================

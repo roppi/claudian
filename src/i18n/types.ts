@@ -235,6 +235,8 @@ export type TranslationKey =
   | 'settings.enableDailyJournal.desc'
   | 'settings.dailyJournalPathTemplate.name'
   | 'settings.dailyJournalPathTemplate.desc'
+  | 'settings.dailyJournalSectionMarker.name'
+  | 'settings.dailyJournalSectionMarker.desc'
   | 'settings.chatViewPlacement.name'
   | 'settings.chatViewPlacement.desc'
   | 'settings.chatViewPlacement.rightSidebar'

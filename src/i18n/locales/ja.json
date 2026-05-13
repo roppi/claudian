@@ -307,6 +307,10 @@
       "name": "日報ファイルのパス",
       "desc": "日報ファイルのパステンプレート。例: 00_common/09_agent/journal/{{date:YYMMDD}}.md。使える日付トークン: YYYY YY MM DD"
     },
+    "dailyJournalSectionMarker": {
+      "name": "日報のセクションマーカー",
+      "desc": "エントリを追記する対象セクションの見出し（例: \"## Sessions\"）。空欄ならファイル末尾に追記します。構造はユーザー側（Templater / 手動）の管理に委ねます。"
+    },
     "chatViewPlacement": {
       "name": "Claudian を開く場所",
       "desc": "チャットパネルを作成するときに開く場所を選択します",

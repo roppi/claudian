@@ -346,6 +346,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(container)
+      .setName(t('settings.dailyJournalSectionMarker.name'))
+      .setDesc(t('settings.dailyJournalSectionMarker.desc'))
+      .addText((text) =>
+        text
+          .setPlaceholder('## Sessions')
+          .setValue(this.plugin.settings.dailyJournalSectionMarker ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.dailyJournalSectionMarker = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Conversations ---
 
     new Setting(container).setName(t('settings.conversations')).setHeading();

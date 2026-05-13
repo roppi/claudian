@@ -156,6 +156,11 @@ export interface ClaudianSettings {
   // See src/features/daily-journal/ for the implementation.
   enableDailyJournal: boolean;
   dailyJournalPathTemplate: string;
+  // Optional section marker (e.g. "## Sessions") under which entries are
+  // appended. Empty string means "append at end of file" — that's the
+  // default, since structure is entirely user-owned (Templater / Daily
+  // Notes / manual). The UI shows "## Sessions" as a placeholder.
+  dailyJournalSectionMarker: string;
 
   // Provider command visibility
   hiddenProviderCommands: HiddenProviderCommands;

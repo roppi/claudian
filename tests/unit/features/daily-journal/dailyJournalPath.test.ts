@@ -1,6 +1,7 @@
 import {
   createDailyJournalPathEvaluator,
   type DailyJournalPathContext,
+  resolveJournalPath,
 } from '../../../../src/features/daily-journal/dailyJournalPath';
 
 // 2026-05-13 (Wed) local. Used as baseDate so offset 0 maps to 260513.
@@ -132,6 +133,26 @@ describe('createDailyJournalPathEvaluator', () => {
         makeCtx(['00_common/09_agent/journal/260513.md']),
       );
       expect(evaluate('1-2-3')).toBe('');
+    });
+  });
+
+  describe('resolveJournalPath (existence-agnostic)', () => {
+    it('expands the template for a given date', () => {
+      expect(
+        resolveJournalPath('journal/{{date:YYMMDD}}.md', new Date(2026, 4, 13)),
+      ).toBe('journal/260513.md');
+    });
+
+    it('returns empty string for an empty template', () => {
+      expect(resolveJournalPath('', new Date())).toBe('');
+    });
+
+    it('does not consult the vault (no existence filtering)', () => {
+      // Same input as createDailyJournalPathEvaluator with no file:
+      // the eval-version returns '' (missing), this one returns the path.
+      expect(
+        resolveJournalPath('logs/{{date:YYYY-MM-DD}}.md', new Date(2026, 4, 13)),
+      ).toBe('logs/2026-05-13.md');
     });
   });
 

@@ -63,6 +63,19 @@ const RANGE_PATTERN = /^(-?\d+)-(-?\d+)$/;
  *   - anything else   -> empty string (graceful failure rather than throwing,
  *                        because this runs on every user message)
  */
+/**
+ * Resolve a daily-journal path for `date`, given a template like
+ * `00_common/09_agent/journal/{{date:YYMMDD}}.md`. Existence is NOT
+ * checked here — callers that need to *append* into the file want the
+ * path even when it doesn't yet exist.
+ */
+export function resolveJournalPath(pathTemplate: string, date: Date): string {
+  if (!pathTemplate) return '';
+  return evaluateTemplate(pathTemplate, {
+    date: (param) => formatDate(date, param ?? ''),
+  });
+}
+
 export function createDailyJournalPathEvaluator(
   ctx: DailyJournalPathContext,
 ): TemplateEvaluator {
