@@ -19,6 +19,7 @@ import type {
   RewindFilesResult,
   SDKMessage,
   SDKUserMessage,
+  SessionStore,
   SlashCommand as SDKSlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
@@ -56,6 +57,8 @@ import type {
   ToolCallInfo,
 } from '../../../core/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
+import { LocalFsSessionStore } from '../../../features/session-store/localFsSessionStore';
+import { ObsidianSessionStoreFs } from '../../../features/session-store/obsidianSessionStoreFs';
 import type ClaudianPlugin from '../../../main';
 import { stripCurrentNoteContext } from '../../../utils/context';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
@@ -653,15 +656,26 @@ export class ClaudianService implements ChatRuntime {
   private buildQueryOptionsContext(vaultPath: string, cliPath: string): QueryOptionsContext {
     const customEnv = parseEnvironmentVariables(this.plugin.getActiveEnvironmentVariables(this.providerId));
     const enhancedPath = getEnhancedPath(customEnv.PATH, cliPath);
+    const settings = this.getScopedSettings();
+
+    let sessionStore: SessionStore | undefined;
+    if (settings.enableSessionStore) {
+      const rootDir = settings.sessionStoreRootDir || '.claudian/transcripts';
+      sessionStore = new LocalFsSessionStore({
+        fs: new ObsidianSessionStoreFs(this.plugin.app.vault.adapter),
+        rootDir,
+      });
+    }
 
     return {
       vaultPath,
       cliPath,
-      settings: this.getScopedSettings(),
+      settings,
       customEnv,
       enhancedPath,
       mcpManager: this.mcpManager,
       pluginManager: this.requirePluginManager(),
+      sessionStore,
     };
   }
 

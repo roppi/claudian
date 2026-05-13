@@ -39,7 +39,7 @@ function fakeFs(initial: Record<string, string> = {}): SessionStoreFs & {
     files,
     dirs,
     log,
-    exists: (p) => files.has(p) || dirs.has(p),
+    exists: async (p) => files.has(p) || dirs.has(p),
     read: async (p) => {
       log.push(`read:${p}`);
       return files.get(p) ?? '';

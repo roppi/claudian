@@ -15,7 +15,7 @@ import type {
  * separators internally so this is safe on Windows.
  */
 export interface SessionStoreFs {
-  exists(path: string): boolean;
+  exists(path: string): Promise<boolean>;
   read(path: string): Promise<string>;
   append(path: string, content: string): Promise<void>;
   list(path: string): Promise<{ files: string[]; dirs: string[] }>;
@@ -81,7 +81,7 @@ export class LocalFsSessionStore implements SessionStore {
 
   async load(key: SessionKey): Promise<SessionStoreEntry[] | null> {
     const path = this.keyToPath(key);
-    if (!this.fs.exists(path)) return null;
+    if (!(await this.fs.exists(path))) return null;
     const content = await this.fs.read(path);
     return parseJsonl(content);
   }
@@ -91,7 +91,7 @@ export class LocalFsSessionStore implements SessionStore {
     sessionId: string;
   }): Promise<string[]> {
     const sessionDir = `${this.rootDir}/${key.sessionId}`;
-    if (!this.fs.exists(sessionDir)) return [];
+    if (!(await this.fs.exists(sessionDir))) return [];
     return walkJsonl(this.fs, sessionDir, '');
   }
 
@@ -104,7 +104,7 @@ export class LocalFsSessionStore implements SessionStore {
 
   private async collectExistingUuids(path: string): Promise<Set<string>> {
     const uuids = new Set<string>();
-    if (!this.fs.exists(path)) return uuids;
+    if (!(await this.fs.exists(path))) return uuids;
     const content = await this.fs.read(path);
     for (const entry of parseJsonl(content)) {
       if (typeof entry.uuid === 'string') uuids.add(entry.uuid);
