@@ -1,4 +1,4 @@
-import { formatDurationMmSs, getTodayDate } from '../../../src/utils/date';
+import { formatDate, formatDurationMmSs, getTodayDate } from '../../../src/utils/date';
 
 describe('getTodayDate', () => {
   it('returns readable date with ISO suffix', () => {
@@ -76,5 +76,51 @@ describe('formatDurationMmSs', () => {
       expect(formatDurationMmSs(Infinity)).toBe('0s');
       expect(formatDurationMmSs(-Infinity)).toBe('0s');
     });
+  });
+});
+
+describe('formatDate', () => {
+  // Use a fixed date so tests are deterministic. Local-time constructor is
+  // intentional: we format using local time, not UTC.
+  // 2026-05-13 (Wed) 08:07:09 local.
+  const fixed = new Date(2026, 4, 13, 8, 7, 9);
+
+  it('formats with the default pattern when none is provided', () => {
+    expect(formatDate(fixed)).toBe('2026-05-13 08:07:09');
+  });
+
+  it('formats with an explicit YYYY-MM-DD HH:mm:ss pattern', () => {
+    expect(formatDate(fixed, 'YYYY-MM-DD HH:mm:ss')).toBe('2026-05-13 08:07:09');
+  });
+
+  it('supports YY (2-digit year)', () => {
+    expect(formatDate(fixed, 'YY')).toBe('26');
+  });
+
+  it('supports compact YYMMDD form (for journal filenames)', () => {
+    expect(formatDate(fixed, 'YYMMDD')).toBe('260513');
+  });
+
+  it('pads single-digit month/day/hour/minute/second with leading zero', () => {
+    const d = new Date(2026, 0, 2, 3, 4, 5); // 2026-01-02 03:04:05
+    expect(formatDate(d, 'YYYY-MM-DD HH:mm:ss')).toBe('2026-01-02 03:04:05');
+  });
+
+  it('distinguishes MM (month) from mm (minute)', () => {
+    expect(formatDate(fixed, 'MM-mm')).toBe('05-07');
+  });
+
+  it('returns empty string for empty pattern', () => {
+    expect(formatDate(fixed, '')).toBe('');
+  });
+
+  it('leaves unknown characters untouched', () => {
+    expect(formatDate(fixed, 'Date: YYYY/MM/DD')).toBe('Date: 2026/05/13');
+  });
+
+  it('returns empty string when given an invalid Date', () => {
+    // Defensive: callers may pass new Date(NaN) by mistake; we don't want
+    // 'NaN-NaN-NaN' leaking into LLM prompts.
+    expect(formatDate(new Date(NaN), 'YYYY-MM-DD')).toBe('');
   });
 });

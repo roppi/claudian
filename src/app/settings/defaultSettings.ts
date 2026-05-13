@@ -50,5 +50,10 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   enableCompletionSound: true,
   completionSoundVolume: 1,
 
+  enableUserPromptTemplate: false,
+  userPromptTemplate: '',
+  enableDailyJournal: true,
+  dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
+
   hiddenProviderCommands: getDefaultHiddenProviderCommands(),
 };

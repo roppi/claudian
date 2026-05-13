@@ -291,6 +291,22 @@
       "name": "Completion sound volume",
       "desc": "Volume of the completion notification sound."
     },
+    "enableUserPromptTemplate": {
+      "name": "User prompt template",
+      "desc": "Transform your outgoing message with a template before it reaches the SDK. UI display is unaffected."
+    },
+    "userPromptTemplate": {
+      "name": "Template",
+      "desc": "Available variables: {{user_prompt}} (raw input), {{now}} (current time), {{daily_journal_path}} (today's journal). If {{user_prompt}} is absent, your raw input is auto-appended at the end."
+    },
+    "enableDailyJournal": {
+      "name": "Auto-append to daily journal",
+      "desc": "Automatically append an entry to today's journal file when a new conversation starts."
+    },
+    "dailyJournalPathTemplate": {
+      "name": "Daily journal path",
+      "desc": "Path template for the journal file. Example: 00_common/09_agent/journal/{{date:YYMMDD}}.md. Date tokens: YYYY YY MM DD."
+    },
     "chatViewPlacement": {
       "name": "Claudian 開啟位置",
       "desc": "選擇新建聊天面板時的開啟位置",

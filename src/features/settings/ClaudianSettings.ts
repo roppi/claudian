@@ -296,6 +296,56 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(container)
+      .setName(t('settings.enableUserPromptTemplate.name'))
+      .setDesc(t('settings.enableUserPromptTemplate.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableUserPromptTemplate ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.enableUserPromptTemplate = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.userPromptTemplate.name'))
+      .setDesc(t('settings.userPromptTemplate.desc'))
+      .addTextArea((textArea) =>
+        textArea
+          .setPlaceholder('[{{now}}] {{user_prompt}}\n\nToday: {{daily_journal_path}}')
+          .setValue(this.plugin.settings.userPromptTemplate ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.userPromptTemplate = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.enableDailyJournal.name'))
+      .setDesc(t('settings.enableDailyJournal.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableDailyJournal ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.enableDailyJournal = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.dailyJournalPathTemplate.name'))
+      .setDesc(t('settings.dailyJournalPathTemplate.desc'))
+      .addText((text) =>
+        text
+          .setPlaceholder('00_common/09_agent/journal/{{date:YYMMDD}}.md')
+          .setValue(this.plugin.settings.dailyJournalPathTemplate ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.dailyJournalPathTemplate = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Conversations ---
 
     new Setting(container).setName(t('settings.conversations')).setHeading();

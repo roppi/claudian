@@ -291,6 +291,22 @@
       "name": "通知音の音量",
       "desc": "応答完了通知音の音量を設定します（0% 〜 100%）。"
     },
+    "enableUserPromptTemplate": {
+      "name": "ユーザープロンプトテンプレート",
+      "desc": "送信時に、テンプレートに従ってあなたの入力を変換します。UI 表示には影響しません。"
+    },
+    "userPromptTemplate": {
+      "name": "テンプレート",
+      "desc": "使える変数: {{user_prompt}}（生入力）、{{now}}（現在時刻）、{{daily_journal_path}}（当日の日報パス）。{{user_prompt}} が無い場合は自動で末尾に追加されます。"
+    },
+    "enableDailyJournal": {
+      "name": "日報への自動追記",
+      "desc": "新しい会話を開始した時に、当日の日報ファイルへエントリを自動追記します。"
+    },
+    "dailyJournalPathTemplate": {
+      "name": "日報ファイルのパス",
+      "desc": "日報ファイルのパステンプレート。例: 00_common/09_agent/journal/{{date:YYMMDD}}.md。使える日付トークン: YYYY YY MM DD"
+    },
     "chatViewPlacement": {
       "name": "Claudian を開く場所",
       "desc": "チャットパネルを作成するときに開く場所を選択します",

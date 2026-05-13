@@ -43,6 +43,7 @@ import type { ImageContextManager } from '../ui/ImageContext';
 import type { AddExternalContextResult, McpServerSelector } from '../ui/InputToolbar';
 import type { InstructionModeManager } from '../ui/InstructionModeManager';
 import type { StatusPanel } from '../ui/StatusPanel';
+import { applyUserPromptTemplate } from '../userPromptTemplate';
 import type { BrowserSelectionController } from './BrowserSelectionController';
 import type { CanvasSelectionController } from './CanvasSelectionController';
 import type { ConversationController } from './ConversationController';
@@ -664,12 +665,26 @@ export class InputController {
     const transformedText = !isCompact && fileContextManager
       ? fileContextManager.transformContextMentions(options.content)
       : options.content;
+
+    // Apply the user-prompt template (feature/message-timestamp).
+    // We skip /compact because that slash command is parsed by the SDK and
+    // must reach it byte-for-byte. For everything else, displayContent stays
+    // as the raw user input — only the text headed to the SDK is rewritten.
+    const plugin = this.deps.plugin;
+    const finalText = isCompact
+      ? transformedText
+      : applyUserPromptTemplate(transformedText, plugin.settings, {
+          vaultOps: {
+            exists: (p) => plugin.app.vault.getAbstractFileByPath(p) !== null,
+          },
+          now: new Date(),
+        });
     const enabledMcpServers = mcpServerSelector?.getEnabledServers();
 
     return {
       displayContent: options.content,
       turnRequest: {
-        text: transformedText,
+        text: finalText,
         images: options.images,
         currentNotePath: shouldSendCurrentNote && currentNotePath ? currentNotePath : undefined,
         editorSelection: editorContext,

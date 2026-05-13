@@ -98,6 +98,10 @@ describe('types.ts', () => {
         chatViewPlacement: 'right-sidebar',
         enableCompletionSound: true,
         completionSoundVolume: 1,
+        enableUserPromptTemplate: false,
+        userPromptTemplate: '',
+        enableDailyJournal: true,
+        dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -152,6 +156,10 @@ describe('types.ts', () => {
         chatViewPlacement: 'right-sidebar',
         enableCompletionSound: true,
         completionSoundVolume: 1,
+        enableUserPromptTemplate: false,
+        userPromptTemplate: '',
+        enableDailyJournal: true,
+        dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
@@ -207,6 +215,10 @@ describe('types.ts', () => {
         chatViewPlacement: 'right-sidebar',
         enableCompletionSound: true,
         completionSoundVolume: 1,
+        enableUserPromptTemplate: false,
+        userPromptTemplate: '',
+        enableDailyJournal: true,
+        dailyJournalPathTemplate: '00_common/09_agent/journal/{{date:YYMMDD}}.md',
         hiddenProviderCommands: {
           claude: [],
           codex: [],
