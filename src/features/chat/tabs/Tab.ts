@@ -1673,6 +1673,14 @@ export function setupServiceCallbacks(tab: TabData, plugin: ClaudianPlugin): voi
       })
     );
     tab.service.setAutoTurnCallback((result: AutoTurnResult) => renderAutoTriggeredTurn(tab, result));
+    // Fires on the SDK's `session_init` for a new conversation, which is the
+    // earliest point the session id is known. Used to write the daily-journal
+    // entry for the very first turn — before this hook existed, the first
+    // turn was skipped because `conv.sessionId` was still null at sendMessage
+    // time (see B4-bug-1).
+    tab.service.setSessionIdResolvedCallback((sessionId) => {
+      void tab.controllers.inputController?.maybeAppendToDailyJournal(sessionId);
+    });
     tab.service.setPermissionModeSyncCallback((sdkMode) => {
       const mode = sdkMode === 'bypassPermissions' || sdkMode === 'yolo'
         ? 'yolo'

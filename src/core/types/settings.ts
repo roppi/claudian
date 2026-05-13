@@ -146,6 +146,22 @@ export interface ClaudianSettings {
   enableCompletionSound: boolean;
   completionSoundVolume: number; // 0.0 – 1.0
 
+  // Message-timestamp / daily-journal features (feature/message-timestamp)
+  // Template-based prefix/suffix applied to the user's outgoing message before
+  // it reaches the SDK. UI display (displayContent) is unaffected. See
+  // src/features/chat/userPromptTemplate.ts for the supported variables.
+  enableUserPromptTemplate: boolean;
+  userPromptTemplate: string;
+  // Automatic append of a conversation entry to today's daily-journal file.
+  // See src/features/daily-journal/ for the implementation.
+  enableDailyJournal: boolean;
+  dailyJournalPathTemplate: string;
+  // Optional section marker (e.g. "## Sessions") under which entries are
+  // appended. Empty string means "append at end of file" — that's the
+  // default, since structure is entirely user-owned (Templater / Daily
+  // Notes / manual). The UI shows "## Sessions" as a placeholder.
+  dailyJournalSectionMarker: string;
+
   // Provider command visibility
   hiddenProviderCommands: HiddenProviderCommands;
 

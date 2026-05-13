@@ -1159,6 +1159,44 @@ describe('ClaudianService', () => {
       expect(service.getSessionId()).toBe('new-session-42');
     });
 
+    it('should fire the resolved callback on session_init with the new session id', async () => {
+      const onResolved = jest.fn();
+      service.setSessionIdResolvedCallback(onResolved);
+      const message = { type: 'system', subtype: 'init', session_id: 'new-session-99' };
+
+      await (service as any).routeMessage(message);
+
+      expect(onResolved).toHaveBeenCalledTimes(1);
+      expect(onResolved).toHaveBeenCalledWith('new-session-99');
+    });
+
+    it('should dedupe the resolved callback when session_init repeats for the same id', async () => {
+      // Resume / refresh can replay session_init with the same id — the
+      // listener should fire only once per distinct session so feature
+      // code doesn't double-execute (daily-journal append etc.).
+      const onResolved = jest.fn();
+      service.setSessionIdResolvedCallback(onResolved);
+      const message = { type: 'system', subtype: 'init', session_id: 'session-77' };
+
+      await (service as any).routeMessage(message);
+      await (service as any).routeMessage(message);
+
+      expect(onResolved).toHaveBeenCalledTimes(1);
+    });
+
+    it('should re-fire the resolved callback after resetSession switches to a new id', async () => {
+      const onResolved = jest.fn();
+      service.setSessionIdResolvedCallback(onResolved);
+
+      await (service as any).routeMessage({ type: 'system', subtype: 'init', session_id: 'first-session' });
+      service.resetSession();
+      await (service as any).routeMessage({ type: 'system', subtype: 'init', session_id: 'second-session' });
+
+      expect(onResolved).toHaveBeenCalledTimes(2);
+      expect(onResolved).toHaveBeenNthCalledWith(1, 'first-session');
+      expect(onResolved).toHaveBeenNthCalledWith(2, 'second-session');
+    });
+
     it('should route stream chunks to handler', async () => {
       const message = {
         type: 'assistant',

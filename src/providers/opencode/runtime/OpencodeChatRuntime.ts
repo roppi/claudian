@@ -23,6 +23,7 @@ import type {
   ChatTurnMetadata,
   ChatTurnRequest,
   PreparedChatTurn,
+  SessionIdResolvedCallback,
   SessionUpdateResult,
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
@@ -484,6 +485,11 @@ export class OpencodeChatRuntime implements ChatRuntime {
   setSubagentHookProvider(_getState: () => SubagentRuntimeState): void {}
 
   setAutoTurnCallback(_callback: AutoTurnCallback | null): void {}
+
+  setSessionIdResolvedCallback(_callback: SessionIdResolvedCallback | null): void {
+    // Opencode doesn't surface a session-init signal in the same way Claude
+    // does; the daily-journal feature is Claude-only for Phase 1.
+  }
 
   consumeTurnMetadata(): ChatTurnMetadata {
     const metadata = this.currentTurnMetadata;

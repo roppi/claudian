@@ -18,6 +18,14 @@ import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSectio
 
 type SettingsTabId = 'general' | ProviderId;
 
+/**
+ * Default example template seeded into `userPromptTemplate` the first time
+ * the user enables the feature. Also used as the textarea placeholder so the
+ * empty-toggle-off and freshly-enabled states show the same content.
+ */
+const DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE =
+  '[{{now}}] {{user_prompt}}\n\nToday: {{daily_journal_path}}';
+
 function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
   const isMac = navigator.platform.includes('Mac');
   const modMap: Record<string, string> = isMac
@@ -292,6 +300,76 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.completionSoundVolume = value / 100;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.enableUserPromptTemplate.name'))
+      .setDesc(t('settings.enableUserPromptTemplate.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableUserPromptTemplate ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.enableUserPromptTemplate = value;
+            // Seed the template with the example the first time the user
+            // turns this on; otherwise toggling ON with an empty template
+            // would be a no-op (the appliers early-return on empty).
+            if (value && !this.plugin.settings.userPromptTemplate) {
+              this.plugin.settings.userPromptTemplate = DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE;
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.userPromptTemplate.name'))
+      .setDesc(t('settings.userPromptTemplate.desc'))
+      .addTextArea((textArea) =>
+        textArea
+          .setPlaceholder(DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE)
+          .setValue(this.plugin.settings.userPromptTemplate ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.userPromptTemplate = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.enableDailyJournal.name'))
+      .setDesc(t('settings.enableDailyJournal.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableDailyJournal ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.enableDailyJournal = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.dailyJournalPathTemplate.name'))
+      .setDesc(t('settings.dailyJournalPathTemplate.desc'))
+      .addText((text) =>
+        text
+          .setPlaceholder('{{date:YYYY-MM-DD}}.md')
+          .setValue(this.plugin.settings.dailyJournalPathTemplate ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.dailyJournalPathTemplate = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.dailyJournalSectionMarker.name'))
+      .setDesc(t('settings.dailyJournalSectionMarker.desc'))
+      .addText((text) =>
+        text
+          .setPlaceholder('## Sessions')
+          .setValue(this.plugin.settings.dailyJournalSectionMarker ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.dailyJournalSectionMarker = value;
             await this.plugin.saveSettings();
           })
       );

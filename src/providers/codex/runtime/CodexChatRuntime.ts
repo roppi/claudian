@@ -22,6 +22,7 @@ import type {
   ChatTurnRequest,
   ExitPlanModeCallback,
   PreparedChatTurn,
+  SessionIdResolvedCallback,
   SessionUpdateResult,
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
@@ -781,6 +782,11 @@ export class CodexChatRuntime implements ChatRuntime {
 
   setAutoTurnCallback(callback: AutoTurnCallback | null): void {
     this.autoTurnCallback = callback;
+  }
+
+  setSessionIdResolvedCallback(_callback: SessionIdResolvedCallback | null): void {
+    // Codex doesn't surface a session-init signal in the same way Claude
+    // does; the daily-journal feature is Claude-only for Phase 1.
   }
 
   buildSessionUpdates(params: {

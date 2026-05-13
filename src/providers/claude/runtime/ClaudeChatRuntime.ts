@@ -41,6 +41,7 @@ import type {
   ChatTurnMetadata,
   ChatTurnRequest,
   PreparedChatTurn,
+  SessionIdResolvedCallback,
   SessionUpdateResult,
 } from '../../../core/runtime/types';
 import { TOOL_ENTER_PLAN_MODE, TOOL_SKILL } from '../../../core/tools/toolNames';
@@ -180,6 +181,13 @@ export class ClaudianService implements ChatRuntime {
   private _autoTurnSawStreamText = false;
   private _autoTurnSawStreamThinking = false;
   private _autoTurnCallback: AutoTurnCallback | null = null;
+  private _sessionIdResolvedCallback: SessionIdResolvedCallback | null = null;
+  /**
+   * Track the last sessionId we fired the resolved callback for, so that
+   * subsequent `session_init` events on the same id (e.g. resume, refresh)
+   * don't trigger duplicate work in the listener. Cleared on `resetSession`.
+   */
+  private _lastNotifiedSessionId: string | null = null;
   private turnMetadata: ChatTurnMetadata = {};
   private bufferedUsageChunk: StreamChunk & { type: 'usage' } | null = null;
   private streamTransformState = createTransformStreamState();
@@ -861,6 +869,18 @@ export class ClaudianService implements ChatRuntime {
           this.pendingForkSession = false;
         }
         this.messageChannel?.setSessionId(event.sessionId);
+        // Notify the resolved-callback exactly once per distinct sessionId
+        // so feature code (e.g. daily-journal append) can act at the
+        // earliest valid moment. Guarded so resume / refresh events on
+        // the same id don't re-trigger the listener.
+        if (this._sessionIdResolvedCallback && this._lastNotifiedSessionId !== event.sessionId) {
+          this._lastNotifiedSessionId = event.sessionId;
+          try {
+            void this._sessionIdResolvedCallback(event.sessionId);
+          } catch {
+            // Listener must never break the streaming loop.
+          }
+        }
         if (event.agents) {
           try { this.getAgentManager()?.setBuiltinAgentNames(event.agents); } catch { /* non-critical */ }
         }
@@ -1636,6 +1656,10 @@ export class ClaudianService implements ChatRuntime {
     this.crashRecoveryAttempted = false;
 
     this.sessionManager.reset();
+
+    // The next session_init will be for a fresh id; clear the dedup token
+    // so the resolved-callback fires for it.
+    this._lastNotifiedSessionId = null;
   }
 
   getSessionId(): string | null {
@@ -1782,6 +1806,14 @@ export class ClaudianService implements ChatRuntime {
 
   setAutoTurnCallback(callback: AutoTurnCallback | null): void {
     this._autoTurnCallback = callback;
+  }
+
+  setSessionIdResolvedCallback(callback: SessionIdResolvedCallback | null): void {
+    this._sessionIdResolvedCallback = callback;
+    // Reset the dedup token so a freshly-registered listener still fires
+    // for the current session if the runtime already has one — otherwise
+    // late-binding listeners would silently miss the first turn.
+    this._lastNotifiedSessionId = null;
   }
 
   private createApprovalCallback(): CanUseTool {

@@ -110,6 +110,17 @@ export interface AutoTurnResult {
 
 export type AutoTurnCallback = (result: AutoTurnResult) => void | Promise<void>;
 
+/**
+ * Fired the moment the runtime first learns the SDK session id for a turn
+ * (e.g. Claude's `session_init` event). Lets feature code that depends on
+ * a known session id — like the daily-journal appender, which needs the
+ * jsonl path that's only derivable from the session id — wake up at the
+ * earliest valid point instead of waiting for the next save round-trip.
+ *
+ * Providers without a comparable signal can leave this as a no-op.
+ */
+export type SessionIdResolvedCallback = (sessionId: string) => void | Promise<void>;
+
 export type {
   ApprovalDecision,
   ExitPlanModeCallback,
