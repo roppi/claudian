@@ -311,6 +311,14 @@
       "name": "Daily journal section marker",
       "desc": "Optional heading line (e.g. \"## Sessions\") under which entries are appended. Leave empty to append at end of file. Structure is owned by you — Claudian only inserts the entry line."
     },
+    "enableSessionStore": {
+      "name": "Cross-machine session store",
+      "desc": "Mirror Claude session transcripts to a Vault-relative directory so any machine that opens the same Vault can resume in-progress sessions. Enabling this disables the rewind-files feature (file checkpointing) because the SDK does not support both at once."
+    },
+    "sessionStoreRootDir": {
+      "name": "Session store directory",
+      "desc": "Vault-relative directory where transcript files are written. Main sessions are saved as {rootDir}/{sessionId}.jsonl; subagent transcripts go under {rootDir}/{sessionId}/."
+    },
     "chatViewPlacement": {
       "name": "Abrir Claudian en",
       "desc": "Elige dónde se abre el panel de chat cuando se crea",

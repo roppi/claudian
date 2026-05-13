@@ -374,6 +374,31 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(container)
+      .setName(t('settings.enableSessionStore.name'))
+      .setDesc(t('settings.enableSessionStore.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableSessionStore ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.enableSessionStore = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.sessionStoreRootDir.name'))
+      .setDesc(t('settings.sessionStoreRootDir.desc'))
+      .addText((text) =>
+        text
+          .setPlaceholder('.claudian/transcripts')
+          .setValue(this.plugin.settings.sessionStoreRootDir ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.sessionStoreRootDir = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Conversations ---
 
     new Setting(container).setName(t('settings.conversations')).setHeading();

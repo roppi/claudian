@@ -311,6 +311,14 @@
       "name": "日報のセクションマーカー",
       "desc": "エントリを追記する対象セクションの見出し（例: \"## Sessions\"）。空欄ならファイル末尾に追記します。構造はユーザー側（Templater / 手動）の管理に委ねます。"
     },
+    "enableSessionStore": {
+      "name": "マシン間セッション同期",
+      "desc": "Claude のセッションログを Vault 内のディレクトリにミラーします。同じ Vault を別マシンで開けば、作業中のセッションをそのまま再開できます。有効にすると、SDK の制約によりファイルの巻き戻し機能（file checkpointing）は自動的に無効になります。"
+    },
+    "sessionStoreRootDir": {
+      "name": "セッションログの保存先",
+      "desc": "Vault 相対のディレクトリパス。メインセッションは {rootDir}/{sessionId}.jsonl として保存され、サブエージェントのセッションは {rootDir}/{sessionId}/ 配下に置かれます。"
+    },
     "chatViewPlacement": {
       "name": "Claudian を開く場所",
       "desc": "チャットパネルを作成するときに開く場所を選択します",
