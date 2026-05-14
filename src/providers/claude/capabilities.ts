@@ -13,5 +13,5 @@ export const CLAUDE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Obje
   supportsMcpTools: true,
   supportsTurnSteer: false,
   reasoningControl: 'effort',
-  planPathPrefix: '/.claude/plans/',
+  planPathPrefix: '/.claudian/plans/',
 });
