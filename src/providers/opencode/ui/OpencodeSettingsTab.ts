@@ -10,9 +10,11 @@ import { clearOpencodeDiscoveryState } from '../discoveryState';
 import { sameStringList } from '../internal/compareCollections';
 import {
   buildOpencodeBaseModels,
+  encodeOpencodeModelId,
   type OpencodeDiscoveredModel,
   splitOpencodeModelLabel,
 } from '../models';
+import { OpencodeChatRuntime } from '../runtime/OpencodeChatRuntime';
 import {
   getOpencodeProviderSettings,
   normalizeOpencodeVisibleModels,
@@ -22,6 +24,7 @@ import {
 import { OpencodeAgentSettings } from './OpencodeAgentSettings';
 
 const ALL_PROVIDERS_KEY = 'all';
+const OPENCODE_METADATA_WARMUP_DB = ':memory:';
 
 interface EnrichedModel {
   description: string;
@@ -55,15 +58,12 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     const cliPathSetting = new Setting(container)
-      .setName(`CLI Path (${hostnameKey})`)
+      .setName('CLI path')
       .setDesc('Optional absolute path to the OpenCode CLI for this computer. Leave empty to use `opencode` from PATH.');
 
-    const validationEl = container.createDiv({ cls: 'claudian-cli-path-validation' });
-    validationEl.style.color = 'var(--text-error)';
-    validationEl.style.fontSize = '0.85em';
-    validationEl.style.marginTop = '-0.5em';
-    validationEl.style.marginBottom = '0.5em';
-    validationEl.style.display = 'none';
+    const validationEl = container.createDiv({
+      cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+    });
 
     const validatePath = (value: string): string | null => {
       const trimmed = value.trim();
@@ -88,16 +88,16 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const error = validatePath(value);
       if (error) {
         validationEl.setText(error);
-        validationEl.style.display = 'block';
+        validationEl.toggleClass('claudian-hidden', false);
         if (inputEl) {
-          inputEl.style.borderColor = 'var(--text-error)';
+          inputEl.toggleClass('claudian-input-error', true);
         }
         return false;
       }
 
-      validationEl.style.display = 'none';
+      validationEl.toggleClass('claudian-hidden', true);
       if (inputEl) {
-        inputEl.style.borderColor = '';
+        inputEl.toggleClass('claudian-input-error', false);
       }
       return true;
     };
@@ -153,7 +153,6 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         });
 
       text.inputEl.addClass('claudian-settings-cli-path-input');
-      text.inputEl.style.width = '100%';
       cliPathInputEl = text.inputEl;
 
       updateCliPathValidation(currentValue, text.inputEl);
@@ -162,7 +161,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Models').setHeading();
 
     new Setting(container)
-      .setName('Visible Models')
+      .setName('Visible models')
       .setDesc('Choose which OpenCode models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.');
 
     const pickerEl = container.createDiv({ cls: 'claudian-opencode-model-picker' });
@@ -195,7 +194,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       cls: 'claudian-opencode-model-picker-search',
       type: 'search',
     });
-    searchInput.placeholder = 'Filter by model, provider, or id…';
+    searchInput.placeholder = 'Filter by model, provider, or ID…';
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value.trim().toLowerCase();
       renderList();
@@ -210,6 +209,8 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     const listEl = catalogEl.createDiv({ cls: 'claudian-opencode-model-picker-list' });
+    let loadingModelCatalog = false;
+    let modelCatalogLoadFailed = false;
 
     const getEnrichedModels = (): EnrichedModel[] => {
       const current = getOpencodeProviderSettings(settingsBag);
@@ -251,6 +252,24 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       context.refreshModelSelectors();
     };
 
+    const persistModelMetadata = async (rawId: string): Promise<void> => {
+      const runtime = new OpencodeChatRuntime(context.plugin);
+      try {
+        runtime.syncConversationState({
+          providerState: { databasePath: OPENCODE_METADATA_WARMUP_DB },
+          sessionId: null,
+        });
+        const loaded = await runtime.warmModelMetadata(encodeOpencodeModelId(rawId));
+        if (loaded) {
+          context.refreshModelSelectors();
+        }
+      } catch {
+        // Metadata warmup is opportunistic; the first chat turn can still discover it.
+      } finally {
+        runtime.cleanup();
+      }
+    };
+
     const persistModelAliases = async (modelAliases: Record<string, string>): Promise<void> => {
       updateOpencodeProviderSettings(settingsBag, { modelAliases });
       await context.plugin.saveSettings();
@@ -274,22 +293,24 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         text: ` of ${current.discoveredModels.length} discovered • ${providerCount} ${providerWord}`,
       });
 
-      catalogSummaryCountEl.setText(
-        current.discoveredModels.length > 0
-          ? `${current.discoveredModels.length} available`
-          : 'No models discovered yet',
-      );
+      let catalogSummary = 'No models discovered yet';
+      if (loadingModelCatalog) {
+        catalogSummary = 'Loading models...';
+      } else if (current.discoveredModels.length > 0) {
+        catalogSummary = `${current.discoveredModels.length} available`;
+      }
+      catalogSummaryCountEl.setText(catalogSummary);
     };
 
     const renderSelected = (): void => {
       selectedEl.empty();
       const current = getOpencodeProviderSettings(settingsBag);
       if (current.visibleModels.length === 0) {
-        selectedEl.style.display = 'none';
+        selectedEl.toggleClass('claudian-hidden', true);
         return;
       }
 
-      selectedEl.style.display = '';
+      selectedEl.toggleClass('claudian-hidden', false);
       const enrichedByRawId = new Map(
         getEnrichedModels().map((model) => [model.rawId, model] as const),
       );
@@ -444,9 +465,15 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
       if (filtered.length === 0) {
         const emptyEl = listEl.createDiv({ cls: 'claudian-opencode-model-picker-empty' });
-        emptyEl.setText(enriched.length === 0
-          ? 'Start OpenCode once to load its model catalog. Claudian will then let you pick visible models.'
-          : 'No models match your filter.');
+        let emptyText = 'No models match your filter.';
+        if (loadingModelCatalog) {
+          emptyText = 'Loading OpenCode model catalog...';
+        } else if (modelCatalogLoadFailed) {
+          emptyText = 'Could not load the OpenCode model catalog. Check the CLI path and login state, then expand this section again.';
+        } else if (enriched.length === 0) {
+          emptyText = 'Start OpenCode once to load its model catalog. Claudian will then let you pick visible models.';
+        }
+        emptyEl.setText(emptyText);
         return;
       }
 
@@ -465,7 +492,12 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           const next = checkboxEl.checked
             ? [...currentVisibleModels, model.rawId]
             : currentVisibleModels.filter((id) => id !== model.rawId);
-          void persistVisibleModels(next);
+          void (async () => {
+            await persistVisibleModels(next);
+            if (checkboxEl.checked) {
+              await persistModelMetadata(model.rawId);
+            }
+          })();
         });
 
         const textEl = rowEl.createDiv({ cls: 'claudian-opencode-model-picker-row-text' });
@@ -509,7 +541,45 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     renderAll();
 
-    new Setting(container).setName('Commands and Skills').setHeading();
+    const loadModelCatalog = async (): Promise<void> => {
+      if (loadingModelCatalog || getOpencodeProviderSettings(settingsBag).discoveredModels.length > 0) {
+        return;
+      }
+
+      loadingModelCatalog = true;
+      modelCatalogLoadFailed = false;
+      renderAll();
+
+      const runtime = new OpencodeChatRuntime(context.plugin);
+      try {
+        runtime.syncConversationState({
+          providerState: { databasePath: OPENCODE_METADATA_WARMUP_DB },
+          sessionId: null,
+        });
+        const loaded = await runtime.ensureReady({ allowSessionCreation: true });
+        modelCatalogLoadFailed = !loaded || getOpencodeProviderSettings(settingsBag).discoveredModels.length === 0;
+        if (!modelCatalogLoadFailed) {
+          context.refreshModelSelectors();
+        }
+      } catch {
+        modelCatalogLoadFailed = true;
+      } finally {
+        loadingModelCatalog = false;
+        runtime.cleanup();
+        renderAll();
+      }
+    };
+
+    catalogEl.addEventListener('toggle', () => {
+      if (catalogEl.open) {
+        void loadModelCatalog();
+      }
+    });
+    if (catalogEl.open) {
+      void loadModelCatalog();
+    }
+
+    new Setting(container).setName('Commands and skills').setHeading();
 
     const commandsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     commandsDesc.createEl('p', {

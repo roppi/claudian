@@ -190,6 +190,43 @@ describe('OpencodeChatRuntime', () => {
     await expect(runtime.ensureReady({ allowSessionCreation: false })).resolves.toBe(true);
   });
 
+  it('restarts when the ACP transport closed even if the subprocess still looks alive', async () => {
+    const plugin = createMockPlugin({
+      settings: {
+        providerConfigs: {
+          opencode: {
+            enabled: true,
+          },
+        },
+      },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    const mockTransport = { dispose: jest.fn(), isClosed: false };
+    const mockProcess = { isAlive: jest.fn().mockReturnValue(true), shutdown: jest.fn() };
+    const mockConnection = { dispose: jest.fn() };
+
+    jest.spyOn(launchArtifacts, 'prepareOpencodeLaunchArtifacts').mockResolvedValue({
+      configPath: '/tmp/claudian-opencode-config.json',
+      configContent: '{}\n',
+      databasePath: '/default/opencode.db',
+      launchKey: 'launch-key',
+      systemPromptPath: '/tmp/claudian-opencode-system.md',
+    });
+    const shutdownProcess = jest.spyOn(runtime as any, 'shutdownProcess').mockResolvedValue(undefined);
+    const startProcess = jest.spyOn(runtime as any, 'startProcess').mockImplementation(async () => {
+      (runtime as any).connection = mockConnection;
+      (runtime as any).process = mockProcess;
+      (runtime as any).transport = mockTransport;
+    });
+
+    await expect(runtime.ensureReady({ allowSessionCreation: false })).resolves.toBe(true);
+    mockTransport.isClosed = true;
+    await expect(runtime.ensureReady({ allowSessionCreation: false })).resolves.toBe(true);
+
+    expect(shutdownProcess).toHaveBeenCalledTimes(2);
+    expect(startProcess).toHaveBeenCalledTimes(2);
+  });
+
   it('maps ACP permission options through the shared approval UI', async () => {
     const runtime = new OpencodeChatRuntime(createMockPlugin());
     const approvalCallback = jest.fn().mockResolvedValue('allow');
@@ -546,9 +583,196 @@ describe('OpencodeChatRuntime', () => {
     expect(plugin.settings.savedProviderEffort.opencode).toBe('high');
     expect(plugin.settings.model).toBe('opencode:anthropic/claude-sonnet-4');
     expect(plugin.settings.effortLevel).toBe('high');
-    expect((runtime as any).resolveSelectedRawModelId()).toBe('anthropic/claude-sonnet-4/high');
+    expect((runtime as any).resolveSelectedRawModelId()).toBe('anthropic/claude-sonnet-4');
     expect(plugin.saveSettings).not.toHaveBeenCalled();
     expect(refreshModelSelector).not.toHaveBeenCalled();
+  });
+
+  it('syncs detached ACP thought-level options into OpenCode provider state', async () => {
+    const refreshModelSelector = jest.fn();
+    const plugin = createMockPlugin({
+      getAllViews: jest.fn().mockReturnValue([{ refreshModelSelector }]),
+      settings: {
+        model: 'opencode:deepseek/deepseek-v4-pro',
+        providerConfigs: {
+          opencode: {
+            discoveredModels: [],
+            preferredThinkingByModel: {},
+            visibleModels: ['deepseek/deepseek-v4-pro'],
+          },
+        },
+        settingsProvider: 'opencode',
+      },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
+
+    await (runtime as any).syncSessionModelState({
+      configOptions: [
+        {
+          category: 'model',
+          currentValue: 'deepseek/deepseek-v4-pro',
+          id: 'model',
+          name: 'Model',
+          options: [
+            { name: 'DeepSeek/DeepSeek V4 Pro', value: 'deepseek/deepseek-v4-pro' },
+          ],
+          type: 'select',
+        },
+        {
+          category: 'thought_level',
+          currentValue: 'low',
+          id: 'effort',
+          name: 'Effort',
+          options: [
+            { name: 'Low', value: 'low' },
+            { name: 'Medium', value: 'medium' },
+            { name: 'High', value: 'high' },
+            { name: 'Max', value: 'max' },
+          ],
+          type: 'select',
+        },
+      ],
+    });
+
+    expect(getOpencodeProviderSettings(plugin.settings).thinkingOptionsByModel).toEqual({
+      'deepseek/deepseek-v4-pro': [
+        { label: 'Low', value: 'low' },
+        { label: 'Medium', value: 'medium' },
+        { label: 'High', value: 'high' },
+        { label: 'Max', value: 'max' },
+      ],
+    });
+    expect(plugin.settings.providerConfigs.opencode.preferredThinkingByModel).toEqual({
+      'deepseek/deepseek-v4-pro': 'low',
+    });
+    expect(plugin.settings.providerConfigs.opencode.thinkingOptionsByModel).toEqual({
+      'deepseek/deepseek-v4-pro': [
+        { label: 'Low', value: 'low' },
+        { label: 'Medium', value: 'medium' },
+        { label: 'High', value: 'high' },
+        { label: 'Max', value: 'max' },
+      ],
+    });
+    expect(plugin.settings.effortLevel).toBe('low');
+    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+    expect(refreshModelSelector).toHaveBeenCalledTimes(1);
+  });
+
+  it('warms selected model metadata by switching ACP model config', async () => {
+    const plugin = createMockPlugin({
+      settings: {
+        model: 'opencode:deepseek/deepseek-v4-pro',
+        providerConfigs: {
+          opencode: {
+            discoveredModels: [
+              { label: 'DeepSeek/DeepSeek V4 Pro', rawId: 'deepseek/deepseek-v4-pro' },
+            ],
+            preferredThinkingByModel: {},
+            visibleModels: ['deepseek/deepseek-v4-pro'],
+          },
+        },
+        settingsProvider: 'opencode',
+      },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    const setConfigOption = jest.fn().mockResolvedValue({
+      configOptions: [
+        {
+          category: 'model',
+          currentValue: 'deepseek/deepseek-v4-pro',
+          id: 'model',
+          name: 'Model',
+          options: [
+            { name: 'DeepSeek/DeepSeek V4 Pro', value: 'deepseek/deepseek-v4-pro' },
+          ],
+          type: 'select',
+        },
+        {
+          category: 'thought_level',
+          currentValue: 'low',
+          id: 'effort',
+          name: 'Effort',
+          options: [
+            { name: 'Low', value: 'low' },
+            { name: 'High', value: 'high' },
+          ],
+          type: 'select',
+        },
+      ],
+    });
+    (runtime as any).connection = { setConfigOption };
+    (runtime as any).sessionId = 'session-1';
+    jest.spyOn(runtime, 'ensureReady').mockResolvedValue(true);
+    jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
+
+    await expect(runtime.warmModelMetadata('opencode:deepseek/deepseek-v4-pro')).resolves.toBe(true);
+
+    expect(setConfigOption).toHaveBeenCalledWith({
+      configId: 'model',
+      sessionId: 'session-1',
+      type: 'select',
+      value: 'deepseek/deepseek-v4-pro',
+    });
+    expect(plugin.settings.providerConfigs.opencode.thinkingOptionsByModel).toEqual({
+      'deepseek/deepseek-v4-pro': [
+        { label: 'Low', value: 'low' },
+        { label: 'High', value: 'high' },
+      ],
+    });
+    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies selected OpenCode effort through the detached ACP effort option', async () => {
+    const plugin = createMockPlugin({
+      settings: {
+        effortLevel: 'high',
+        model: 'opencode:deepseek/deepseek-v4-pro',
+        providerConfigs: {
+          opencode: {
+            discoveredModels: [
+              { label: 'DeepSeek/DeepSeek V4 Pro', rawId: 'deepseek/deepseek-v4-pro' },
+            ],
+            thinkingOptionsByModel: {
+              'deepseek/deepseek-v4-pro': [
+                { label: 'Low', value: 'low' },
+                { label: 'High', value: 'high' },
+              ],
+            },
+            visibleModels: ['deepseek/deepseek-v4-pro'],
+          },
+        },
+        settingsProvider: 'opencode',
+      },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    const setConfigOption = jest.fn().mockResolvedValue({
+      configOptions: [{
+        category: 'thought_level',
+        currentValue: 'high',
+        id: 'effort',
+        name: 'Effort',
+        options: [
+          { name: 'Low', value: 'low' },
+          { name: 'High', value: 'high' },
+        ],
+        type: 'select',
+      }],
+    });
+    (runtime as any).connection = { setConfigOption };
+    (runtime as any).currentSessionEffortConfigId = 'effort';
+    (runtime as any).currentSessionEffortValue = 'low';
+    (runtime as any).currentSessionEffortValues = new Set(['low', 'high']);
+    jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
+
+    await (runtime as any).applySelectedEffort('session-1');
+
+    expect(setConfigOption).toHaveBeenCalledWith({
+      configId: 'effort',
+      sessionId: 'session-1',
+      type: 'select',
+      value: 'high',
+    });
   });
 
   it('exposes the active display model for auxiliary OpenCode tasks', () => {
@@ -579,6 +803,6 @@ describe('OpencodeChatRuntime', () => {
     jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
     jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
 
-    expect(runtime.getAuxiliaryModel()).toBe('opencode:anthropic/claude-sonnet-4/high');
+    expect(runtime.getAuxiliaryModel()).toBe('opencode:anthropic/claude-sonnet-4');
   });
 });

@@ -9,17 +9,13 @@ import { getCustomModelIds } from '../env/claudeModelEnv';
 import { getClaudeModelOptions } from '../modelOptions';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '../settings';
 import {
-  type ClaudeModel,
   DEFAULT_CLAUDE_MODELS,
   DEFAULT_EFFORT_LEVEL,
-  DEFAULT_THINKING_BUDGET,
   EFFORT_LEVELS,
   getContextWindowSize,
-  isAdaptiveThinkingModel,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
   supportsXHighEffort,
-  THINKING_BUDGETS,
 } from '../types/models';
 
 const CLAUDE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
@@ -37,28 +33,22 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
   },
 
   ownsModel(model: string, settings: Record<string, unknown>): boolean {
-    return this.getModelOptions(settings).some((option: ProviderUIOption) => option.value === model);
+    return getClaudeModelOptions(settings).some((option: ProviderUIOption) => option.value === model);
   },
 
-  isAdaptiveReasoningModel(model: string, _settings: Record<string, unknown>): boolean {
-    return isAdaptiveThinkingModel(model);
+  isAdaptiveReasoningModel(_model: string, _settings: Record<string, unknown>): boolean {
+    return true;
   },
 
   getReasoningOptions(model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
-    if (isAdaptiveThinkingModel(model)) {
-      const levels = supportsXHighEffort(model)
-        ? EFFORT_LEVELS
-        : EFFORT_LEVELS.filter(e => e.value !== 'xhigh');
-      return levels.map(e => ({ value: e.value, label: e.label }));
-    }
-    return THINKING_BUDGETS.map(b => ({ value: b.value, label: b.label, tokens: b.tokens }));
+    const levels = supportsXHighEffort(model)
+      ? EFFORT_LEVELS
+      : EFFORT_LEVELS.filter(e => e.value !== 'xhigh');
+    return levels.map(e => ({ value: e.value, label: e.label }));
   },
 
   getDefaultReasoningValue(model: string, _settings: Record<string, unknown>): string {
-    if (isAdaptiveThinkingModel(model)) {
-      return DEFAULT_EFFORT_LEVEL[model] ?? 'high';
-    }
-    return DEFAULT_THINKING_BUDGET[model] ?? 'off';
+    return DEFAULT_EFFORT_LEVEL[model] ?? 'high';
   },
 
   getContextWindowSize(model: string, customLimits?: Record<string, number>): number {
@@ -73,16 +63,11 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
     const target = settings as Record<string, unknown>;
 
     if (DEFAULT_CLAUDE_MODELS.some(m => m.value === model)) {
-      target.thinkingBudget = DEFAULT_THINKING_BUDGET[model as ClaudeModel];
-      if (isAdaptiveThinkingModel(model)) {
-        target.effortLevel = DEFAULT_EFFORT_LEVEL[model as ClaudeModel] ?? 'high';
-      }
+      target.effortLevel = DEFAULT_EFFORT_LEVEL[model] ?? 'high';
       updateClaudeProviderSettings(target, { lastModel: model });
     } else {
       target.lastCustomModel = model;
-      if (isAdaptiveThinkingModel(model)) {
-        target.effortLevel = normalizeEffortLevel(model, target.effortLevel as string | undefined);
-      }
+      target.effortLevel = normalizeEffortLevel(model, target.effortLevel);
     }
   },
 

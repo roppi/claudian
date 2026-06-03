@@ -192,6 +192,7 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
       || !this.transport
       || !this.connection
       || !this.process.isAlive()
+      || this.transport.isClosed
       || this.currentLaunchKey !== nextLaunchKey;
 
     if (!shouldRestart) {
@@ -315,7 +316,7 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
 
   private resolveSelectedRawModel(explicitModel?: string): string | undefined {
     const projectedSettings = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       'opencode',
     );
     if (explicitModel) {

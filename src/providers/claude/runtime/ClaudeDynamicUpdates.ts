@@ -10,8 +10,7 @@ import type {
 } from '../../../core/runtime/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
 import {
-  resolveAdaptiveEffortLevel,
-  resolveThinkingTokens,
+  resolveEffortLevel,
 } from '../types/models';
 import type {
   ClaudeEnsureReadyOptions,
@@ -77,42 +76,19 @@ export async function applyClaudeDynamicUpdates(
     }
   }
 
-  const thinkingTokens = resolveThinkingTokens(selectedModel, settings.thinkingBudget);
-  const currentThinking = deps.getCurrentConfig()?.thinkingTokens ?? null;
-  if (thinkingTokens !== currentThinking) {
+  const effortLevel = resolveEffortLevel(selectedModel, settings.effortLevel);
+  const currentEffort = deps.getCurrentConfig()?.effortLevel ?? null;
+  if (effortLevel !== currentEffort) {
     try {
-      await persistentQuery.setMaxThinkingTokens(thinkingTokens);
+      // SDK runtime accepts `max`, but the current type definition for
+      // Settings.effortLevel has not caught up yet.
+      await persistentQuery.applyFlagSettings({ effortLevel } as unknown as Parameters<Query['applyFlagSettings']>[0]);
       deps.mutateCurrentConfig(config => {
-        config.thinkingTokens = thinkingTokens;
+        config.effortLevel = effortLevel;
       });
     } catch {
-      deps.notifyFailure('Failed to update thinking budget');
+      deps.notifyFailure('Failed to update effort level');
     }
-  } else {
-    deps.mutateCurrentConfig(config => {
-      config.thinkingTokens = thinkingTokens;
-    });
-  }
-
-  const effortLevel = resolveAdaptiveEffortLevel(selectedModel, settings.effortLevel);
-  if (effortLevel !== null) {
-    const currentEffort = deps.getCurrentConfig()?.effortLevel ?? null;
-    if (effortLevel !== currentEffort) {
-      try {
-        // SDK runtime accepts `max`, but the current type definition for
-        // Settings.effortLevel has not caught up yet.
-        await persistentQuery.applyFlagSettings({ effortLevel } as unknown as Parameters<Query['applyFlagSettings']>[0]);
-        deps.mutateCurrentConfig(config => {
-          config.effortLevel = effortLevel;
-        });
-      } catch {
-        deps.notifyFailure('Failed to update effort level');
-      }
-    }
-  } else {
-    deps.mutateCurrentConfig(config => {
-      config.effortLevel = null;
-    });
   }
 
   const configBeforePermissionUpdate = deps.getCurrentConfig();
@@ -150,7 +126,7 @@ export async function applyClaudeDynamicUpdates(
   if (deps.getCurrentConfig() && mcpServersKey !== deps.getCurrentConfig()!.mcpServersKey) {
     const serverConfigs: Record<string, McpServerConfig> = {};
     for (const [name, config] of Object.entries(mcpServers)) {
-      serverConfigs[name] = config as McpServerConfig;
+      serverConfigs[name] = config;
     }
 
     try {

@@ -1,6 +1,10 @@
+const mockGetHostnameKey = jest.fn(() => 'host-a');
+const mockGetLegacyHostnameKey = jest.fn(() => 'legacy-host');
+
 jest.mock('../../../../src/utils/env', () => ({
   ...jest.requireActual('../../../../src/utils/env'),
-  getHostnameKey: () => 'host-a',
+  getHostnameKey: () => mockGetHostnameKey(),
+  getLegacyHostnameKey: () => mockGetLegacyHostnameKey(),
 }));
 
 import {
@@ -18,6 +22,12 @@ describe('OpenCode settings normalization', () => {
     { label: 'Anthropic/Claude Sonnet 4 (high)', rawId: 'anthropic/claude-sonnet-4/high' },
     { label: 'Google/Gemini 2.5 Pro', rawId: 'google/gemini-2.5-pro' },
   ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetHostnameKey.mockReturnValue('host-a');
+    mockGetLegacyHostnameKey.mockReturnValue('legacy-host');
+  });
 
   it('enables Exa-backed web search in the default provider env', () => {
     expect(DEFAULT_OPENCODE_PROVIDER_SETTINGS.environmentVariables).toBe('OPENCODE_ENABLE_EXA=1');
@@ -76,6 +86,27 @@ describe('OpenCode settings normalization', () => {
         'anthropic/claude-sonnet-4',
         'google/gemini-2.5-pro',
       ],
+    });
+  });
+
+  it('migrates current legacy hostname-scoped CLI paths to the opaque device key', () => {
+    mockGetHostnameKey.mockReturnValue('device:current');
+    mockGetLegacyHostnameKey.mockReturnValue('host-a');
+
+    const settings = getOpencodeProviderSettings({
+      providerConfigs: {
+        opencode: {
+          cliPathsByHost: {
+            'host-a': '/host-a/opencode',
+            'host-b': '/host-b/opencode',
+          },
+        },
+      },
+    });
+
+    expect(settings.cliPathsByHost).toEqual({
+      'device:current': '/host-a/opencode',
+      'host-b': '/host-b/opencode',
     });
   });
 
@@ -220,6 +251,105 @@ describe('OpenCode settings normalization', () => {
     expect((settings.providerConfigs as Record<string, any>).opencode.discoveredModels).toBeUndefined();
   });
 
+  it('persists thinking options only for visible or selected OpenCode models', () => {
+    const settings: Record<string, unknown> = {
+      model: 'opencode:google/gemini-2.5-pro',
+      providerConfigs: {
+        opencode: {
+          discoveredModels,
+          visibleModels: ['anthropic/claude-sonnet-4'],
+        },
+      },
+      savedProviderModel: {
+        opencode: 'opencode:google/gemini-2.5-pro',
+      },
+    };
+
+    const next = updateOpencodeProviderSettings(settings, {
+      thinkingOptionsByModel: {
+        'anthropic/claude-sonnet-4': [
+          { label: 'High', value: 'high' },
+        ],
+        'google/gemini-2.5-pro': [
+          { label: 'Low', value: 'low' },
+        ],
+        'openai/gpt-5': [
+          { label: 'Max', value: 'max' },
+        ],
+      },
+    });
+
+    expect(next.thinkingOptionsByModel).toMatchObject({
+      'anthropic/claude-sonnet-4': [
+        { label: 'High', value: 'high' },
+      ],
+      'google/gemini-2.5-pro': [
+        { label: 'Low', value: 'low' },
+      ],
+    });
+    expect((settings.providerConfigs as Record<string, any>).opencode.thinkingOptionsByModel).toEqual({
+      'anthropic/claude-sonnet-4': [
+        { label: 'High', value: 'high' },
+      ],
+      'google/gemini-2.5-pro': [
+        { label: 'Low', value: 'low' },
+      ],
+    });
+    expect((settings.providerConfigs as Record<string, any>).opencode.discoveredModels).toBeUndefined();
+  });
+
+  it('hydrates persisted thinking options without requiring the full discovered model catalog', () => {
+    const settings = getOpencodeProviderSettings({
+      providerConfigs: {
+        opencode: {
+          thinkingOptionsByModel: {
+            'deepseek/deepseek-v4-pro': [
+              { label: 'Low', value: 'low' },
+              { label: 'Max', value: 'max' },
+            ],
+          },
+          visibleModels: ['deepseek/deepseek-v4-pro'],
+        },
+      },
+    });
+
+    expect(settings.discoveredModels).toEqual([]);
+    expect(settings.thinkingOptionsByModel).toEqual({
+      'deepseek/deepseek-v4-pro': [
+        { label: 'Low', value: 'low' },
+        { label: 'Max', value: 'max' },
+      ],
+    });
+  });
+
+  it('preserves persisted thinking options when unrelated provider settings are updated', () => {
+    const settings: Record<string, unknown> = {
+      providerConfigs: {
+        opencode: {
+          environmentHash: '',
+          thinkingOptionsByModel: {
+            'deepseek/deepseek-v4-pro': [
+              { label: 'Low', value: 'low' },
+              { label: 'Max', value: 'max' },
+            ],
+          },
+          visibleModels: ['deepseek/deepseek-v4-pro'],
+        },
+      },
+    };
+
+    updateOpencodeProviderSettings(settings, {
+      environmentHash: 'OPENCODE_DB=/tmp/opencode.db',
+    });
+
+    expect((settings.providerConfigs as Record<string, any>).opencode.thinkingOptionsByModel).toEqual({
+      'deepseek/deepseek-v4-pro': [
+        { label: 'Low', value: 'low' },
+        { label: 'Max', value: 'max' },
+      ],
+    });
+  });
+
   it('normalizes saved custom OpenCode modes back to the managed YOLO mode', () => {
     expect(getOpencodeProviderSettings({
       providerConfigs: {
@@ -280,6 +410,30 @@ describe('OpenCode settings normalization', () => {
     });
     expect((settings.providerConfigs as Record<string, any>).opencode.cliPathsByHost).toEqual({
       'host-a': '/custom/opencode',
+    });
+  });
+
+  it('preserves legacy cliPath when applying a full settings snapshot', () => {
+    const settings: Record<string, unknown> = {
+      providerConfigs: {
+        opencode: {
+          cliPath: '/legacy/opencode',
+          cliPathsByHost: {
+            'host-b': '/other-host/opencode',
+          },
+        },
+      },
+    };
+
+    const snapshot = getOpencodeProviderSettings(settings);
+    const next = updateOpencodeProviderSettings(settings, snapshot);
+
+    expect(next.cliPath).toBe('/legacy/opencode');
+    expect((settings.providerConfigs as Record<string, any>).opencode).toMatchObject({
+      cliPath: '/legacy/opencode',
+      cliPathsByHost: {
+        'host-b': '/other-host/opencode',
+      },
     });
   });
 

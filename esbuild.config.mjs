@@ -1,7 +1,7 @@
 import esbuild from 'esbuild';
+import { builtinModules } from 'node:module';
 import path from 'path';
 import process from 'process';
-import builtins from 'builtin-modules';
 import {
   copyFileSync,
   existsSync,
@@ -30,54 +30,68 @@ if (existsSync('.env.local')) {
 
 const prod = process.argv[2] === 'production';
 
-const patchCodexSdkImportMeta = {
-  name: 'patch-codex-sdk-import-meta',
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getNamedImportAliases(contents, exportName, moduleNames) {
+  const aliases = new Set([exportName]);
+  const importPattern = /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g;
+  let match;
+
+  while ((match = importPattern.exec(contents)) !== null) {
+    const [, specifiers, moduleName] = match;
+    if (!moduleNames.includes(moduleName)) continue;
+
+    for (const specifier of specifiers.split(',')) {
+      const parts = specifier.trim().split(/\s+as\s+/);
+      if (parts[0] === exportName) {
+        aliases.add(parts[1] ?? exportName);
+      }
+    }
+  }
+
+  return [...aliases];
+}
+
+function patchSdkImportMetaUrl(contents) {
+  let patched = contents.replace(
+    'createRequire(import.meta.url)',
+    'createRequire(__filename)',
+  );
+
+  for (const alias of getNamedImportAliases(patched, 'createRequire', ['module', 'node:module'])) {
+    patched = patched.replace(
+      new RegExp(`\\b${escapeRegExp(alias)}\\(import\\.meta\\.url\\)`, 'g'),
+      `${alias}(__filename)`,
+    );
+  }
+
+  for (const alias of getNamedImportAliases(patched, 'fileURLToPath', ['url', 'node:url'])) {
+    patched = patched.replace(
+      new RegExp(`\\b${escapeRegExp(alias)}\\(import\\.meta\\.url\\)`, 'g'),
+      '__filename',
+    );
+  }
+
+  return patched;
+}
+
+const patchSdkImportMeta = {
+  name: 'patch-sdk-import-meta',
   setup(build) {
     build.onLoad(
-      { filter: /[\\/]node_modules[\\/]@openai[\\/]codex-sdk[\\/]dist[\\/]index\.js$/ },
+      {
+        filter: /[\\/]node_modules[\\/](?:@openai[\\/]codex-sdk[\\/]dist[\\/]index\.js|@anthropic-ai[\\/]claude-agent-sdk[\\/]sdk\.mjs)$/,
+      },
       async (args) => {
         const contents = await fsPromises.readFile(args.path, 'utf8');
         return {
-          contents: contents.replace('createRequire(import.meta.url)', 'createRequire(__filename)'),
+          contents: patchSdkImportMetaUrl(contents),
           loader: 'js',
         };
       },
     );
-  },
-};
-
-// Claude Agent SDK 0.2.113+ ships ESM `.mjs` modules. When esbuild
-// bundles them into our CJS `main.js`, it auto-generates a CJS-interop
-// shim that calls `createRequire(import.meta.url)` and
-// `fileURLToPath(import.meta.url)`. `import.meta.url` is rewritten to a
-// local `import_meta.url` reference whose underlying object is never
-// populated in the CJS runtime, so the call throws at plugin load
-// (`Plugin failure: claudian TypeError: The argument 'filename' must
-// be a file URL object ...`). The source `.mjs` files themselves
-// contain no such call, so an `onLoad` substitution doesn't help; we
-// patch the bundled output instead.
-//
-// We can't simply rewrite `import_meta.url` to `__filename` because
-// `fileURLToPath` requires a file URL string, not a path. Instead we
-// inject a one-time computation of the bundle's file URL via
-// `pathToFileURL(__filename).href` and route every `import_meta.url`
-// reference through it.
-const patchBundleImportMeta = {
-  name: 'patch-bundle-import-meta',
-  setup(build) {
-    build.onEnd(async (result) => {
-      if (result.errors.length > 0 || !existsSync('main.js')) return;
-      const bundlePath = path.join(process.cwd(), 'main.js');
-      const original = await fsPromises.readFile(bundlePath, 'utf8');
-      if (!original.includes('import_meta.url')) return;
-      const replaced = original.replace(
-        /import_meta\.url/g,
-        "require('url').pathToFileURL(__filename).href",
-      );
-      if (replaced !== original) {
-        await fsPromises.writeFile(bundlePath, replaced, 'utf8');
-      }
-    });
   },
 };
 
@@ -147,7 +161,7 @@ const copyToObsidian = {
 const context = await esbuild.context({
   entryPoints: ['src/main.ts'],
   bundle: true,
-  plugins: [patchCodexSdkImportMeta, patchBundleImportMeta, patchRendererUnsafeUnref, copyToObsidian],
+  plugins: [patchSdkImportMeta, patchRendererUnsafeUnref, copyToObsidian],
   external: [
     'obsidian',
     'electron',
@@ -162,8 +176,8 @@ const context = await esbuild.context({
     '@lezer/common',
     '@lezer/highlight',
     '@lezer/lr',
-    ...builtins,
-    ...builtins.map(m => `node:${m}`),
+    ...builtinModules,
+    ...builtinModules.map(m => `node:${m}`),
   ],
   format: 'cjs',
   target: 'es2018',

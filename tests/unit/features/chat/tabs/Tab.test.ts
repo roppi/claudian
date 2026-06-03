@@ -1,7 +1,7 @@
 import '@/providers';
 
 import { createMockEl } from '@test/helpers/mockElement';
-import { Notice } from 'obsidian';
+import { Notice, Platform } from 'obsidian';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
@@ -201,7 +201,7 @@ let mockSelectionController: ReturnType<typeof createMockSelectionController>;
 let mockBrowserSelectionController: ReturnType<typeof createMockBrowserSelectionController>;
 let mockCanvasSelectionController: ReturnType<typeof createMockCanvasSelectionController>;
 let mockStreamController: { onAsyncSubagentStateChange: jest.Mock };
-let mockConversationController: { save: jest.Mock };
+let mockConversationController: { save: jest.Mock; rewind: jest.Mock };
 let mockInputController: ReturnType<typeof createMockInputController>;
 let mockNavigationController: { initialize: jest.Mock; dispose: jest.Mock };
 
@@ -342,7 +342,10 @@ jest.mock('@/features/chat/controllers/StreamController', () => ({
 
 jest.mock('@/features/chat/controllers/ConversationController', () => ({
   ConversationController: jest.fn().mockImplementation(() => {
-    mockConversationController = { save: jest.fn().mockResolvedValue(undefined) };
+    mockConversationController = {
+      save: jest.fn().mockResolvedValue(undefined),
+      rewind: jest.fn().mockResolvedValue(undefined),
+    };
     return mockConversationController;
   }),
 }));
@@ -920,7 +923,7 @@ describe('Tab - Service Initialization', () => {
       expect(mockSlashCommandDropdown.resetSdkSkillsCache).toHaveBeenCalled();
     });
 
-    it('rebinds blank-tab helper services when a newly enabled provider takes over the draft model', () => {
+    it('rebinds provider-scoped helper services when a newly enabled provider takes over the draft model', () => {
       const createInstructionRefineServiceSpy = jest.spyOn(ProviderRegistry, 'createInstructionRefineService')
         .mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
       const createTitleGenerationServiceSpy = jest.spyOn(ProviderRegistry, 'createTitleGenerationService')
@@ -956,7 +959,7 @@ describe('Tab - Service Initialization', () => {
 
       expect(tab.providerId).toBe('codex');
       expect(createInstructionRefineServiceSpy).toHaveBeenLastCalledWith(plugin, 'codex');
-      expect(createTitleGenerationServiceSpy).toHaveBeenLastCalledWith(plugin, 'codex');
+      expect(createTitleGenerationServiceSpy).not.toHaveBeenCalledWith(plugin, 'codex');
     });
 
     it('surfaces provider-scoped model settings for inactive-provider tabs and saves back to that provider snapshot', async () => {
@@ -1790,6 +1793,23 @@ describe('Tab - Controller Initialization', () => {
       expect(tab.controllers.conversationController).toBeDefined();
     });
 
+    it('should forward rewind mode from renderer to ConversationController', async () => {
+      const options = createMockOptions();
+      const tab = createTab(options);
+      const mockComponent = {} as any;
+
+      initializeTabUI(tab, options.plugin);
+      initializeTabControllers(tab, options.plugin, mockComponent, options.mcpManager);
+
+      const { MessageRenderer } = jest.requireMock('@/features/chat/rendering/MessageRenderer') as { MessageRenderer: jest.Mock };
+      const lastCall = MessageRenderer.mock.calls[MessageRenderer.mock.calls.length - 1];
+      const rewindCallback = lastCall[3];
+
+      await rewindCallback('message-1', 'conversation');
+
+      expect(mockConversationController.rewind).toHaveBeenCalledWith('message-1', 'conversation');
+    });
+
     it('should create InputController', () => {
       const options = createMockOptions();
       const tab = createTab(options);
@@ -1892,6 +1912,7 @@ describe('Tab - Controller Initialization', () => {
 describe('Tab - Event Handler Behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Platform.isMacOS = true;
     mockFileContextManager = createMockFileContextManager();
     mockSlashCommandDropdown = createMockSlashCommandDropdown();
     mockInstructionModeManager = createMockInstructionModeManager();
@@ -2027,6 +2048,52 @@ describe('Tab - Event Handler Behavior', () => {
       expect(mockSlashCommandDropdown.handleKeydown).toHaveBeenCalled();
     });
 
+    it('should let explicit Command+Enter send before slash dropdown handles Enter', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(true);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { fireKeydown } = setupKeydownTab();
+      Platform.isMacOS = true;
+
+      const event = {
+        key: 'Enter',
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: true,
+        altKey: false,
+        isComposing: false,
+        preventDefault: jest.fn(),
+      };
+      fireKeydown(event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).toHaveBeenCalled();
+      expect(mockSlashCommandDropdown.handleKeydown).not.toHaveBeenCalled();
+    });
+
+    it('should keep plain Enter routed to visible slash dropdown before sending', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(true);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { fireKeydown } = setupKeydownTab();
+
+      const event = {
+        key: 'Enter',
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        isComposing: false,
+        preventDefault: jest.fn(),
+      };
+      fireKeydown(event);
+
+      expect(mockSlashCommandDropdown.handleKeydown).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+    });
+
     it('should handle resume dropdown keydown', () => {
       mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
       mockInstructionModeManager.handleKeydown.mockReturnValue(false);
@@ -2108,6 +2175,56 @@ describe('Tab - Event Handler Behavior', () => {
 
       expect(event.preventDefault).not.toHaveBeenCalled();
       expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('should require Command+Enter on macOS when the send shortcut setting is enabled', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(false);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { options, fireKeydown } = setupKeydownTab();
+      Platform.isMacOS = true;
+      options.plugin.settings.requireCommandOrControlEnterToSend = true;
+
+      const enterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(enterEvent);
+
+      expect(enterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const controlEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: true, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(controlEnterEvent);
+
+      expect(controlEnterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const commandEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: true, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(commandEnterEvent);
+
+      expect(commandEnterEvent.preventDefault).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).toHaveBeenCalled();
+    });
+
+    it('should require Ctrl+Enter off macOS when the send shortcut setting is enabled', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(false);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { options, fireKeydown } = setupKeydownTab();
+      Platform.isMacOS = false;
+      options.plugin.settings.requireCommandOrControlEnterToSend = true;
+
+      const commandEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: true, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(commandEnterEvent);
+
+      expect(commandEnterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const controlEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: true, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(controlEnterEvent);
+
+      expect(controlEnterEvent.preventDefault).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).toHaveBeenCalled();
     });
 
     it('should not send message on Enter when isComposing (IME)', () => {
@@ -3890,7 +4007,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     expect(tab.serviceInitialized).toBe(false);
     expect(tab.providerId).toBe('claude');
     expect(createInstructionRefineServiceSpy.mock.calls.length).toBeGreaterThan(initialInstructionCalls);
-    expect(createTitleGenerationServiceSpy.mock.calls.length).toBeGreaterThan(initialTitleCalls);
+    expect(createTitleGenerationServiceSpy.mock.calls.length).toBe(initialTitleCalls);
   });
 });
 

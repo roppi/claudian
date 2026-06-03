@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "Откатить до этой точки? Изменения файлов после этого сообщения будут отменены. Откат не затрагивает файлы, отредактированные вручную или через bash.",
+      "confirmMessageConversationOnly": "Откатить разговор до этой точки? Изменения файлов будут сохранены.",
       "confirmButton": "Откатить",
       "ariaLabel": "Откатить сюда",
+      "menuConversationOnly": "Откатить только разговор",
+      "menuCodeAndConversation": "Откатить код + разговор",
       "notice": "Откачено: восстановлено файлов — {count}",
+      "noticeConversationOnly": "Разговор откачен; изменения файлов сохранены",
       "noticeSaveFailed": "Откат выполнен: восстановлено файлов — {count}, но не удалось сохранить состояние: {error}",
+      "noticeConversationOnlySaveFailed": "Разговор откачен, но не удалось сохранить состояние: {error}",
       "failed": "Ошибка отката: {error}",
       "cannot": "Невозможно откатить: {error}",
       "unavailableStreaming": "Невозможно откатить во время потоковой передачи",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Сопоставления навигации в стиле Vim",
       "desc": "По одному сопоставлению в строке. Формат: \"map <ключ> <действие>\" (действия: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Требовать Command/Ctrl+Enter для отправки",
+      "desc": "Если включено, Enter вставляет новую строку. Command+Enter отправляет на macOS; Ctrl+Enter отправляет на Windows и Linux."
     },
     "hotkeys": "Горячие клавиши",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "Обновить",
         "cancel": "Отмена"
       }
+    },
+    "customModelOverrides": {
+      "name": "Переопределения пользовательских моделей",
+      "desc": "Настройте псевдонимы в селекторе моделей и размеры окна контекста для пользовательских моделей."
+    },
+    "customModelAliases": {
+      "placeholder": "Псевдоним"
     },
     "customContextLimits": {
       "name": "Пользовательские лимиты контекста",
