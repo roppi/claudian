@@ -296,9 +296,6 @@ export class QueryOptionsBuilder {
         PATH: ctx.enhancedPath,
       },
       includePartialMessages: true,
-      managedSettings: {
-        remoteControlAtStartup: false,
-      },
     };
 
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings);

@@ -552,19 +552,6 @@ describe('QueryOptionsBuilder', () => {
       expect(options.sessionStore).toBeUndefined();
     });
 
-    it('injects managedSettings to disable Remote Control at startup', () => {
-      const ctx = {
-        ...createMockContext(),
-        abortController: new AbortController(),
-        hooks: {},
-      };
-      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
-
-      expect((options as { managedSettings?: Record<string, unknown> }).managedSettings).toEqual({
-        remoteControlAtStartup: false,
-      });
-    });
-
     it('disables file checkpointing and wires the SessionStore when provided', () => {
       // SessionStore and enableFileCheckpointing are mutually exclusive in
       // the SDK; the builder forces checkpointing off whenever a store is
@@ -674,20 +661,6 @@ describe('QueryOptionsBuilder', () => {
   });
 
   describe('buildColdStartQueryOptions', () => {
-    it('injects managedSettings on the cold-start path too', () => {
-      const ctx = {
-        ...createMockContext(),
-        abortController: new AbortController(),
-        hooks: {},
-        hasEditorContext: false,
-      };
-      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
-
-      expect((options as { managedSettings?: Record<string, unknown> }).managedSettings).toEqual({
-        remoteControlAtStartup: false,
-      });
-    });
-
     it('includes MCP servers when available', () => {
       const mcpManager = createMockMcpManager();
       mcpManager.getActiveServers.mockReturnValue({
