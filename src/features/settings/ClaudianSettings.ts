@@ -1,5 +1,5 @@
 import type { App } from 'obsidian';
-import { Notice, PluginSettingTab, Setting } from 'obsidian';
+import { Notice, Platform, PluginSettingTab, Setting } from 'obsidian';
 
 import {
   getHiddenProviderCommands,
@@ -16,7 +16,26 @@ import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
 
-type SettingsTabId = 'general' | ProviderId;
+type SettingsTabId = string;
+type ObsidianHotkey = { modifiers: string[]; key: string };
+type ObsidianHotkeyManager = {
+  customKeys?: Record<string, ObsidianHotkey[] | undefined>;
+  defaultKeys?: Record<string, ObsidianHotkey[] | undefined>;
+};
+type ObsidianHotkeyTab = {
+  searchInputEl?: HTMLInputElement;
+  searchComponent?: { inputEl?: HTMLInputElement };
+  updateHotkeyVisibility?: () => void;
+};
+type ObsidianSettingsController = {
+  activeTab?: ObsidianHotkeyTab;
+  open: () => void;
+  openTabById: (id: string) => void;
+};
+type AppWithHotkeyInternals = App & {
+  hotkeyManager?: ObsidianHotkeyManager;
+  setting?: ObsidianSettingsController;
+};
 
 /**
  * Default example template seeded into `userPromptTemplate` the first time
@@ -26,8 +45,8 @@ type SettingsTabId = 'general' | ProviderId;
 const DEFAULT_USER_PROMPT_TEMPLATE_EXAMPLE =
   '[{{now}}] {{user_prompt}}\n\nToday: {{daily_journal_path}}';
 
-function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
-  const isMac = navigator.platform.includes('Mac');
+function formatHotkey(hotkey: ObsidianHotkey): string {
+  const isMac = Platform.isMacOS;
   const modMap: Record<string, string> = isMac
     ? { Mod: '⌘', Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Meta: '⌘' }
     : { Mod: 'Ctrl', Ctrl: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win' };
@@ -39,10 +58,14 @@ function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
 }
 
 function openHotkeySettings(app: App): void {
-  const setting = (app as any).setting;
+  const setting = (app as AppWithHotkeyInternals).setting;
+  if (!setting) {
+    return;
+  }
+
   setting.open();
   setting.openTabById('hotkeys');
-  setTimeout(() => {
+  window.setTimeout(() => {
     const tab = setting.activeTab;
     if (!tab) {
       return;
@@ -59,12 +82,12 @@ function openHotkeySettings(app: App): void {
 }
 
 function getHotkeyForCommand(app: App, commandId: string): string | null {
-  const hotkeyManager = (app as any).hotkeyManager;
+  const hotkeyManager = (app as AppWithHotkeyInternals).hotkeyManager;
   if (!hotkeyManager) return null;
 
   const customHotkeys = hotkeyManager.customKeys?.[commandId];
   const defaultHotkeys = hotkeyManager.defaultKeys?.[commandId];
-  const hotkeys = customHotkeys?.length > 0 ? customHotkeys : defaultHotkeys;
+  const hotkeys = customHotkeys && customHotkeys.length > 0 ? customHotkeys : defaultHotkeys;
 
   if (!hotkeys || hotkeys.length === 0) return null;
 
@@ -214,16 +237,13 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setName(t('settings.maxTabs.name'))
       .setDesc(t('settings.maxTabs.desc'));
 
-    const maxTabsWarningEl = container.createDiv({ cls: 'claudian-max-tabs-warning' });
-    maxTabsWarningEl.style.color = 'var(--text-warning)';
-    maxTabsWarningEl.style.fontSize = '0.85em';
-    maxTabsWarningEl.style.marginTop = '-0.5em';
-    maxTabsWarningEl.style.marginBottom = '0.5em';
-    maxTabsWarningEl.style.display = 'none';
+    const maxTabsWarningEl = container.createDiv({
+      cls: 'claudian-max-tabs-warning claudian-setting-validation claudian-setting-validation-warning claudian-hidden',
+    });
     maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
 
     const updateMaxTabsWarning = (value: number): void => {
-      maxTabsWarningEl.style.display = value > 5 ? 'block' : 'none';
+      maxTabsWarningEl.toggleClass('claudian-hidden', value <= 5);
     };
 
     maxTabsSetting.addSlider((slider) => {
@@ -235,6 +255,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
           this.plugin.settings.maxTabs = value;
           await this.plugin.saveSettings();
           updateMaxTabsWarning(value);
+          for (const view of this.plugin.getAllViews()) {
+            view.refreshTabControls();
+          }
         });
       updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
     });
@@ -459,7 +482,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.plugin.settings.userName = value;
             await this.plugin.saveSettings();
           });
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     new Setting(container)
@@ -475,7 +500,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
         text.inputEl.rows = 6;
         text.inputEl.cols = 50;
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     new Setting(container)
@@ -483,7 +510,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.excludedTags.desc'))
       .addTextArea((text) => {
         text
-          .setPlaceholder('system\nprivate\ndraft')
+          .setPlaceholder('System\nprivate\ndraft')
           .setValue(this.plugin.settings.excludedTags.join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.excludedTags = value
@@ -501,19 +528,33 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.mediaFolder.desc'))
       .addText((text) => {
         text
-          .setPlaceholder('attachments')
+          .setPlaceholder('Attachments')
           .setValue(this.plugin.settings.mediaFolder)
           .onChange(async (value) => {
             this.plugin.settings.mediaFolder = value.trim();
             await this.plugin.saveSettings();
           });
         text.inputEl.addClass('claudian-settings-media-input');
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     // --- Input ---
 
     new Setting(container).setName(t('settings.input')).setHeading();
+
+    new Setting(container)
+      .setName(t('settings.requireCommandOrControlEnterToSend.name'))
+      .setDesc(t('settings.requireCommandOrControlEnterToSend.desc'))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.requireCommandOrControlEnterToSend ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.requireCommandOrControlEnterToSend = value;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(container)
       .setName(t('settings.navMappings.name'))
@@ -556,7 +597,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         };
 
         text
-          .setPlaceholder('map w scrollUp\nmap s scrollDown\nmap i focusInput')
+          .setPlaceholder('Map w scrollup\nmap s scrolldown\nmap i focusinput')
           .setValue(pendingValue)
           .onChange((value) => {
             pendingValue = value;
@@ -564,8 +605,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
 
         text.inputEl.rows = 3;
-        text.inputEl.addEventListener('blur', async () => {
-          await commitValue(true);
+        text.inputEl.addEventListener('blur', () => {
+          void commitValue(true);
         });
       });
 
@@ -642,33 +683,68 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     const headerEl = container.createDiv({ cls: 'claudian-context-limits-header' });
     headerEl.createSpan({
-      text: t('settings.customContextLimits.name'),
+      text: t('settings.customModelOverrides.name'),
       cls: 'claudian-context-limits-label',
     });
 
     const descEl = container.createDiv({ cls: 'claudian-context-limits-desc' });
-    descEl.setText(t('settings.customContextLimits.desc'));
+    descEl.setText(t('settings.customModelOverrides.desc'));
 
     const listEl = container.createDiv({ cls: 'claudian-context-limits-list' });
 
     for (const modelId of uniqueModelIds) {
       const currentValue = this.plugin.settings.customContextLimits?.[modelId];
+      const currentAlias = this.plugin.settings.customModelAliases?.[modelId] ?? '';
 
       const itemEl = listEl.createDiv({ cls: 'claudian-context-limits-item' });
       const nameEl = itemEl.createDiv({ cls: 'claudian-context-limits-model' });
       nameEl.setText(modelId);
 
       const inputWrapper = itemEl.createDiv({ cls: 'claudian-context-limits-input-wrapper' });
+      const aliasInputEl = inputWrapper.createEl('input', {
+        type: 'text',
+        placeholder: t('settings.customModelAliases.placeholder'),
+        cls: 'claudian-context-alias-input',
+        value: currentAlias,
+      });
+      aliasInputEl.setAttribute('aria-label', `Alias for ${modelId}`);
+      aliasInputEl.title = 'Custom label shown in the model selector. Leave empty to use the default.';
+
       const inputEl = inputWrapper.createEl('input', {
         type: 'text',
         placeholder: '200k',
         cls: 'claudian-context-limits-input',
         value: currentValue ? formatContextLimit(currentValue) : '',
       });
+      inputEl.setAttribute('aria-label', `Context window for ${modelId}`);
 
-      const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation' });
+      const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation claudian-hidden' });
 
-      inputEl.addEventListener('input', async () => {
+      const saveAlias = async (): Promise<void> => {
+        if (!this.plugin.settings.customModelAliases) {
+          this.plugin.settings.customModelAliases = {};
+        }
+
+        const existing = this.plugin.settings.customModelAliases[modelId] ?? '';
+        const trimmed = aliasInputEl.value.trim();
+        if (trimmed === existing) {
+          aliasInputEl.value = existing;
+          return;
+        }
+
+        if (trimmed) {
+          this.plugin.settings.customModelAliases[modelId] = trimmed;
+        } else {
+          delete this.plugin.settings.customModelAliases[modelId];
+        }
+
+        await this.plugin.saveSettings();
+        for (const view of this.plugin.getAllViews()) {
+          view.refreshModelSelector();
+        }
+      };
+
+      const saveContextLimit = async (): Promise<void> => {
         const trimmed = inputEl.value.trim();
 
         if (!this.plugin.settings.customContextLimits) {
@@ -677,23 +753,40 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
         if (!trimmed) {
           delete this.plugin.settings.customContextLimits[modelId];
-          validationEl.style.display = 'none';
+          validationEl.toggleClass('claudian-hidden', true);
           inputEl.classList.remove('claudian-input-error');
         } else {
           const parsed = parseContextLimit(trimmed);
           if (parsed === null) {
             validationEl.setText(t('settings.customContextLimits.invalid'));
-            validationEl.style.display = 'block';
+            validationEl.toggleClass('claudian-hidden', false);
             inputEl.classList.add('claudian-input-error');
             return;
           }
 
           this.plugin.settings.customContextLimits[modelId] = parsed;
-          validationEl.style.display = 'none';
+          validationEl.toggleClass('claudian-hidden', true);
           inputEl.classList.remove('claudian-input-error');
         }
 
         await this.plugin.saveSettings();
+      };
+
+      inputEl.addEventListener('input', () => {
+        void saveContextLimit();
+      });
+      aliasInputEl.addEventListener('blur', () => {
+        void saveAlias();
+      });
+      aliasInputEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          aliasInputEl.blur();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          aliasInputEl.value = this.plugin.settings.customModelAliases?.[modelId] ?? '';
+          aliasInputEl.blur();
+        }
       });
     }
   }

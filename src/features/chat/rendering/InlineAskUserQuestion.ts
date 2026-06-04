@@ -51,7 +51,7 @@ export class InlineAskUserQuestion {
       showCustomInput: config?.showCustomInput ?? true,
       immediateSelect: config?.immediateSelect ?? false,
     };
-    this.boundKeyDown = this.handleKeyDown.bind(this);
+    this.boundKeyDown = (event) => this.handleKeyDown(event);
   }
 
   render(): void {
@@ -91,7 +91,7 @@ export class InlineAskUserQuestion {
     this.rootEl.addEventListener('keydown', this.boundKeyDown);
 
     // Defer focus to after the element is in the DOM and laid out
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.rootEl.focus();
       this.rootEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
@@ -110,7 +110,7 @@ export class InlineAskUserQuestion {
     const raw = this.input.questions;
     if (!Array.isArray(raw)) return [];
 
-    return raw
+    return (raw as unknown[])
       .filter(
         (q): q is {
           question: string;
@@ -120,11 +120,14 @@ export class InlineAskUserQuestion {
           isOther?: boolean;
           isSecret?: boolean;
           id?: string;
-        } =>
-          typeof q === 'object' &&
-          q !== null &&
-          typeof q.question === 'string' &&
-          ((Array.isArray(q.options) && q.options.length > 0) || q.isOther === true),
+        } => {
+          if (!q || typeof q !== 'object' || Array.isArray(q)) {
+            return false;
+          }
+          const record = q as Record<string, unknown>;
+          return typeof record.question === 'string'
+            && ((Array.isArray(record.options) && record.options.length > 0) || record.isOther === true);
+        },
       )
       .map((q, idx) => ({
         question: q.question,
@@ -145,7 +148,7 @@ export class InlineAskUserQuestion {
       const value = this.extractValue(obj, label);
       return { label, description, ...(value !== label ? { value } : {}) };
     }
-    return { label: typeof opt === 'string' ? opt : String(opt), description: '' };
+    return { label: this.stringifyOptionValue(opt), description: '' };
   }
 
   private deduplicateOptions(options: AskUserQuestionOption[]): AskUserQuestionOption[] {
@@ -162,7 +165,15 @@ export class InlineAskUserQuestion {
     if (typeof obj.value === 'string') return obj.value;
     if (typeof obj.text === 'string') return obj.text;
     if (typeof obj.name === 'string') return obj.name;
-    return String(obj);
+    return 'Option';
+  }
+
+  private stringifyOptionValue(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return `${value}`;
+    }
+    return 'Option';
   }
 
   private extractValue(obj: Record<string, unknown>, fallback: string): string {
@@ -313,6 +324,12 @@ export class InlineAskUserQuestion {
         this.isInputFocused = false;
       });
 
+      customRow.addEventListener('click', () => {
+        this.focusedItemIndex = customIdx;
+        this.updateFocusIndicator();
+        inputEl.focus();
+      });
+
       this.currentItems.push(customRow);
     }
 
@@ -446,13 +463,13 @@ export class InlineAskUserQuestion {
       item.toggleClass('is-selected', isSelected);
 
       if (isMulti) {
-        const checkSpan = item.querySelector('.claudian-ask-check') as HTMLElement | null;
+        const checkSpan = item.querySelector('.claudian-ask-check');
         if (checkSpan) {
           checkSpan.textContent = isSelected ? '[\u2713] ' : '[ ] ';
           checkSpan.toggleClass('is-checked', isSelected);
         }
       } else {
-        const labelRow = item.querySelector('.claudian-ask-label-row') as HTMLElement | null;
+        const labelRow = item.querySelector('.claudian-ask-label-row');
         const existingMark = item.querySelector('.claudian-ask-check-mark');
         if (isSelected && !existingMark && labelRow) {
           labelRow.createSpan({ text: ' \u2713', cls: 'claudian-ask-check-mark' });
@@ -471,25 +488,9 @@ export class InlineAskUserQuestion {
         item.addClass('is-focused');
         if (cursor) cursor.textContent = '\u203A';
         item.scrollIntoView({ block: 'nearest' });
-
-        if (item.hasClass('claudian-ask-custom-item')) {
-          const input = item.querySelector('.claudian-ask-custom-text') as HTMLInputElement;
-          if (input) {
-            input.focus();
-            this.isInputFocused = true;
-          }
-        }
       } else {
         item.removeClass('is-focused');
         if (cursor) cursor.textContent = '\u00A0';
-
-        if (item.hasClass('claudian-ask-custom-item')) {
-          const input = item.querySelector('.claudian-ask-custom-text') as HTMLInputElement;
-          if (input && document.activeElement === input) {
-            input.blur();
-            this.isInputFocused = false;
-          }
-        }
       }
     }
   }
@@ -556,7 +557,7 @@ export class InlineAskUserQuestion {
         e.preventDefault();
         e.stopPropagation();
         this.isInputFocused = false;
-        (document.activeElement as HTMLElement)?.blur();
+        (this.rootEl.ownerDocument.activeElement as HTMLElement | null)?.blur();
         this.rootEl.focus();
         return;
       }
@@ -564,12 +565,28 @@ export class InlineAskUserQuestion {
         e.preventDefault();
         e.stopPropagation();
         this.isInputFocused = false;
-        (document.activeElement as HTMLElement)?.blur();
+        (this.rootEl.ownerDocument.activeElement as HTMLElement | null)?.blur();
         if (e.key === 'Tab' && e.shiftKey) {
           this.switchTab(this.activeTabIndex - 1);
         } else {
           this.switchTab(this.activeTabIndex + 1);
         }
+        return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        (this.rootEl.ownerDocument.activeElement as HTMLElement | null)?.blur();
+        this.isInputFocused = false;
+        const q = this.questions[this.activeTabIndex];
+        const maxIdx = this.canShowCustomInputForQuestion(q) ? q.options.length : q.options.length - 1;
+        if (e.key === 'ArrowUp') {
+          this.focusedItemIndex = Math.max(this.focusedItemIndex - 1, 0);
+        } else {
+          this.focusedItemIndex = Math.min(this.focusedItemIndex + 1, maxIdx);
+        }
+        this.updateFocusIndicator();
+        this.rootEl.focus();
         return;
       }
       return;
@@ -621,9 +638,8 @@ export class InlineAskUserQuestion {
           this.selectOption(this.activeTabIndex, q.options[this.focusedItemIndex]);
         } else if (this.canShowCustomInputForQuestion(q)) {
           this.isInputFocused = true;
-          const input = this.contentArea.querySelector(
-            '.claudian-ask-custom-text',
-          ) as HTMLInputElement;
+          const customRow = this.currentItems[this.focusedItemIndex];
+          const input = customRow?.querySelector('.claudian-ask-custom-text') as HTMLInputElement;
           input?.focus();
         }
         break;

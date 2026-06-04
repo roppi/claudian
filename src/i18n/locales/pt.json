@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "Retroceder até este ponto? As alterações de arquivos após esta mensagem serão revertidas. O retrocesso não afeta arquivos editados manualmente ou via bash.",
+      "confirmMessageConversationOnly": "Retroceder a conversa até este ponto? As alterações de arquivos serão mantidas.",
       "confirmButton": "Retroceder",
       "ariaLabel": "Retroceder até aqui",
+      "menuConversationOnly": "Retroceder somente conversa",
+      "menuCodeAndConversation": "Retroceder código + conversa",
       "notice": "Retrocedido: {count} arquivo(s) revertido(s)",
+      "noticeConversationOnly": "Conversa retrocedida; alterações de arquivos mantidas",
       "noticeSaveFailed": "Retrocedido: {count} arquivo(s) revertido(s), mas não foi possível salvar o estado: {error}",
+      "noticeConversationOnlySaveFailed": "Conversa retrocedida, mas não foi possível salvar o estado: {error}",
       "failed": "Falha ao retroceder: {error}",
       "cannot": "Não é possível retroceder: {error}",
       "unavailableStreaming": "Não é possível retroceder durante a transmissão",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Mapeamentos de navegação estilo Vim",
       "desc": "Um mapeamento por linha. Formato: \"map <tecla> <ação>\" (ações: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Exigir Command/Ctrl+Enter para enviar",
+      "desc": "Quando ativado, Enter insere uma quebra de linha. Command+Enter envia no macOS; Ctrl+Enter envia no Windows e Linux."
     },
     "hotkeys": "Atalhos",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "Atualizar",
         "cancel": "Cancelar"
       }
+    },
+    "customModelOverrides": {
+      "name": "Substituições de modelos personalizados",
+      "desc": "Defina aliases no seletor de modelos e tamanhos de janela de contexto para modelos personalizados."
+    },
+    "customModelAliases": {
+      "placeholder": "Alias"
     },
     "customContextLimits": {
       "name": "Limites de contexto personalizados",

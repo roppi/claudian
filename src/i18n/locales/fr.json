@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "Rembobiner jusqu'à ce point ? Les modifications de fichiers après ce message seront annulées. Le rembobinage n'affecte pas les fichiers modifiés manuellement ou via bash.",
+      "confirmMessageConversationOnly": "Rembobiner la conversation jusqu'à ce point ? Les modifications de fichiers seront conservées.",
       "confirmButton": "Rembobiner",
       "ariaLabel": "Rembobiner jusqu'ici",
+      "menuConversationOnly": "Rembobiner la conversation seule",
+      "menuCodeAndConversation": "Rembobiner code + conversation",
       "notice": "Rembobiné : {count} fichier(s) restauré(s)",
+      "noticeConversationOnly": "Conversation rembobinée ; modifications de fichiers conservées",
       "noticeSaveFailed": "Rembobiné : {count} fichier(s) restauré(s), mais impossible d'enregistrer l'état : {error}",
+      "noticeConversationOnlySaveFailed": "Conversation rembobinée, mais impossible d'enregistrer l'état : {error}",
       "failed": "Échec du rembobinage : {error}",
       "cannot": "Impossible de rembobiner : {error}",
       "unavailableStreaming": "Impossible de rembobiner pendant le streaming",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Mappages de navigation style Vim",
       "desc": "Un mappage par ligne. Format : \"map <touche> <action>\" (actions : scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Exiger Command/Ctrl+Entrée pour envoyer",
+      "desc": "Lorsque cette option est activée, Entrée insère une nouvelle ligne. Command+Entrée envoie sur macOS ; Ctrl+Entrée envoie sur Windows et Linux."
     },
     "hotkeys": "Raccourcis clavier",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "Mettre à jour",
         "cancel": "Annuler"
       }
+    },
+    "customModelOverrides": {
+      "name": "Remplacements de modèles personnalisés",
+      "desc": "Définissez les alias dans le sélecteur de modèle et les tailles de fenêtre de contexte pour les modèles personnalisés."
+    },
+    "customModelAliases": {
+      "placeholder": "Alias"
     },
     "customContextLimits": {
       "name": "Limites de contexte personnalisées",

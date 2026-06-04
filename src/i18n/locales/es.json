@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "¿Rebobinar a este punto? Los cambios de archivos después de este mensaje serán revertidos. El rebobinado no afecta archivos editados manualmente o mediante bash.",
+      "confirmMessageConversationOnly": "¿Rebobinar la conversación hasta este punto? Se conservarán los cambios de archivos.",
       "confirmButton": "Rebobinar",
       "ariaLabel": "Rebobinar hasta aquí",
+      "menuConversationOnly": "Rebobinar solo conversación",
+      "menuCodeAndConversation": "Rebobinar código + conversación",
       "notice": "Rebobinado: {count} archivo(s) revertido(s)",
+      "noticeConversationOnly": "Conversación rebobinada; cambios de archivos conservados",
       "noticeSaveFailed": "Rebobinado: {count} archivo(s) revertido(s), pero no se pudo guardar el estado: {error}",
+      "noticeConversationOnlySaveFailed": "Conversación rebobinada, pero no se pudo guardar el estado: {error}",
       "failed": "Error al rebobinar: {error}",
       "cannot": "No se puede rebobinar: {error}",
       "unavailableStreaming": "No se puede rebobinar durante la transmisión",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Mapeos de navegación estilo Vim",
       "desc": "Un mapeo por línea. Formato: \"map <tecla> <acción>\" (acciones: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Requerir Command/Ctrl+Enter para enviar",
+      "desc": "Cuando está activado, Enter inserta un salto de línea. Command+Enter envía en macOS; Ctrl+Enter envía en Windows y Linux."
     },
     "hotkeys": "Atajos de teclado",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "Actualizar",
         "cancel": "Cancelar"
       }
+    },
+    "customModelOverrides": {
+      "name": "Anulaciones de modelos personalizados",
+      "desc": "Configure alias en el selector de modelos y tamaños de ventana de contexto para modelos personalizados."
+    },
+    "customModelAliases": {
+      "placeholder": "Alias"
     },
     "customContextLimits": {
       "name": "Límites de contexto personalizados",

@@ -9,10 +9,16 @@ import {
 } from '@/providers/claude/storage/ClaudianSettingsStorage';
 import { DEFAULT_SETTINGS } from '@/providers/claude/types/settings';
 import { getCodexProviderSettings } from '@/providers/codex/settings';
+import { getOpencodeProviderSettings } from '@/providers/opencode/settings';
+import { getPiProviderSettings } from '@/providers/pi/settings';
+
+const mockGetHostnameKey = jest.fn(() => 'host-a');
+const mockGetLegacyHostnameKey = jest.fn(() => 'legacy-host');
 
 jest.mock('@/utils/env', () => ({
   ...jest.requireActual('@/utils/env'),
-  getHostnameKey: () => 'host-a',
+  getHostnameKey: () => mockGetHostnameKey(),
+  getLegacyHostnameKey: () => mockGetLegacyHostnameKey(),
 }));
 
 const mockAdapter = {
@@ -32,6 +38,8 @@ describe('ClaudianSettingsStorage', () => {
     mockAdapter.read.mockResolvedValue('{}');
     mockAdapter.write.mockResolvedValue(undefined);
     mockAdapter.delete.mockResolvedValue(undefined);
+    mockGetHostnameKey.mockReturnValue('host-a');
+    mockGetLegacyHostnameKey.mockReturnValue('legacy-host');
     storage = new ClaudianSettingsStorage(mockAdapter);
   });
 
@@ -44,6 +52,7 @@ describe('ClaudianSettingsStorage', () => {
       expect(result.model).toBe(DEFAULT_SETTINGS.model);
       expect(result.thinkingBudget).toBe(DEFAULT_SETTINGS.thinkingBudget);
       expect(result.permissionMode).toBe(DEFAULT_SETTINGS.permissionMode);
+      expect(result.requireCommandOrControlEnterToSend).toBe(false);
       expect(mockAdapter.read).not.toHaveBeenCalled();
     });
 
@@ -186,6 +195,108 @@ describe('ClaudianSettingsStorage', () => {
 
       expect(getCodexProviderSettings(result).cliPathsByHost['host-a']).toBe('/custom/codex-a');
       expect(getCodexProviderSettings(result).cliPathsByHost['host-b']).toBe('/custom/codex-b');
+    });
+
+    it('migrates current legacy hostname-scoped provider settings to the opaque device key', async () => {
+      mockGetHostnameKey.mockReturnValue('device:current');
+      mockGetLegacyHostnameKey.mockReturnValue('host-a');
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        providerConfigs: {
+          claude: {
+            cliPathsByHost: {
+              'host-a': '/custom/claude-a',
+              'host-b': '/custom/claude-b',
+            },
+          },
+          codex: {
+            cliPathsByHost: {
+              'host-a': '/custom/codex-a',
+              'host-b': '/custom/codex-b',
+            },
+            installationMethodsByHost: {
+              'host-a': 'wsl',
+              'host-b': 'native-windows',
+            },
+            wslDistroOverridesByHost: {
+              'host-a': 'Ubuntu',
+              'host-b': 'Debian',
+            },
+          },
+          opencode: {
+            cliPathsByHost: {
+              'host-a': '/custom/opencode-a',
+              'host-b': '/custom/opencode-b',
+            },
+          },
+          pi: {
+            cliPathsByHost: {
+              'host-a': '/custom/pi-a',
+              'host-b': '/custom/pi-b',
+            },
+          },
+        },
+      }));
+
+      const result = await storage.load();
+      const claudeSettings = getClaudeProviderSettings(result);
+      const codexSettings = getCodexProviderSettings(result);
+      const opencodeSettings = getOpencodeProviderSettings(result);
+      const piSettings = getPiProviderSettings(result);
+      const persistedOpencodeConfig = result.providerConfigs.opencode as Record<string, unknown>;
+      const persistedPiConfig = result.providerConfigs.pi as Record<string, unknown>;
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(claudeSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/claude-a',
+        'host-b': '/custom/claude-b',
+      });
+      expect(codexSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/codex-a',
+        'host-b': '/custom/codex-b',
+      });
+      expect(codexSettings.installationMethod).toBe('wsl');
+      expect(codexSettings.installationMethodsByHost).toEqual({
+        'device:current': 'wsl',
+        'host-b': 'native-windows',
+      });
+      expect(codexSettings.wslDistroOverride).toBe('Ubuntu');
+      expect(codexSettings.wslDistroOverridesByHost).toEqual({
+        'device:current': 'Ubuntu',
+        'host-b': 'Debian',
+      });
+      expect(opencodeSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
+      expect(piSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/pi-a',
+        'host-b': '/custom/pi-b',
+      });
+      expect(persistedOpencodeConfig.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
+      expect(persistedPiConfig.cliPathsByHost).toEqual({
+        'device:current': '/custom/pi-a',
+        'host-b': '/custom/pi-b',
+      });
+      expect(writtenContent.providerConfigs.claude.cliPathsByHost).toEqual({
+        'device:current': '/custom/claude-a',
+        'host-b': '/custom/claude-b',
+      });
+      expect(writtenContent.providerConfigs.codex.cliPathsByHost).toEqual({
+        'device:current': '/custom/codex-a',
+        'host-b': '/custom/codex-b',
+      });
+      expect(writtenContent.providerConfigs.opencode.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
+      expect(writtenContent.providerConfigs.pi.cliPathsByHost).toEqual({
+        'device:current': '/custom/pi-a',
+        'host-b': '/custom/pi-b',
+      });
     });
 
     it('should preserve legacy codexCliPath field', async () => {
@@ -340,8 +451,46 @@ describe('ClaudianSettingsStorage', () => {
         envVars: 'PATH=/usr/local/bin\nANTHROPIC_MODEL=claude-custom',
         scope: undefined,
         contextLimits: undefined,
+        modelAliases: undefined,
       }]);
       expect(writtenContent.envSnippets[0].scope).toBeUndefined();
+    });
+
+    it('normalizes custom model aliases on load', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        customModelAliases: {
+          ' custom-model ': '  Friendly model  ',
+          empty: '   ',
+          ignored: 123,
+        },
+        envSnippets: [{
+          id: 'snippet-1',
+          name: 'Aliased snippet',
+          description: '',
+          envVars: 'ANTHROPIC_MODEL=custom-model',
+          modelAliases: {
+            ' custom-model ': '  Snippet model  ',
+            ignored: 123,
+          },
+        }],
+      }));
+
+      const result = await storage.load();
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(result.customModelAliases).toEqual({
+        'custom-model': 'Friendly model',
+      });
+      expect(result.envSnippets[0].modelAliases).toEqual({
+        'custom-model': 'Snippet model',
+      });
+      expect(writtenContent.customModelAliases).toEqual({
+        'custom-model': 'Friendly model',
+      });
+      expect(writtenContent.envSnippets[0].modelAliases).toEqual({
+        'custom-model': 'Snippet model',
+      });
     });
 
     it('should throw on JSON parse error', async () => {

@@ -21,6 +21,7 @@ export interface EnvSnippet {
   envVars: string;
   scope?: EnvironmentScope;
   contextLimits?: Record<string, number>;  // Optional: context limits for custom models
+  modelAliases?: Record<string, string>;   // Optional: display aliases for custom models
 }
 
 /** Source of a slash command. */
@@ -78,7 +79,7 @@ export type PermissionMode = 'yolo' | 'plan' | 'normal';
 /** Scope for environment variable storage and snippets. */
 export type EnvironmentScope = 'shared' | `provider:${string}`;
 
-/** Hostname-keyed CLI paths for per-device configuration. */
+/** Opaque device-keyed CLI paths for per-device configuration. */
 export type HostnameCliPaths = Record<string, string>;
 
 /** Opaque provider-owned settings bags keyed by provider id. */
@@ -116,9 +117,11 @@ export interface ClaudianSettings {
   sharedEnvironmentVariables: string;
   envSnippets: EnvSnippet[];
   customContextLimits: Record<string, number>;
+  customModelAliases: Record<string, string>;
 
   // UI settings
   keyboardNavigation: KeyboardNavigationSettings;
+  requireCommandOrControlEnterToSend: boolean;
 
   // Internationalization
   locale: string;

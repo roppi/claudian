@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "回退到此處？此訊息之後的檔案變更將被還原。回退不會影響手動或透過 bash 編輯的檔案。",
+      "confirmMessageConversationOnly": "將對話回退到此處？檔案變更將保留。",
       "confirmButton": "回退",
       "ariaLabel": "回退到此處",
+      "menuConversationOnly": "僅回退對話",
+      "menuCodeAndConversation": "回退程式碼 + 對話",
       "notice": "已回退：還原了 {count} 個檔案",
+      "noticeConversationOnly": "已回退對話；檔案變更已保留",
       "noticeSaveFailed": "已回退：還原了 {count} 個檔案，但無法儲存狀態：{error}",
+      "noticeConversationOnlySaveFailed": "已回退對話，但無法儲存狀態：{error}",
       "failed": "回退失敗：{error}",
       "cannot": "無法回退：{error}",
       "unavailableStreaming": "串流回應中無法回退",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Vim 風格導航映射",
       "desc": "每行一個映射。格式：\"map <鍵> <動作>\"（動作：scrollUp, scrollDown, focusInput）。"
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "需要 Command/Ctrl+Enter 才能傳送",
+      "desc": "啟用後，Enter 會插入換行。macOS 使用 Command+Enter 傳送；Windows 和 Linux 使用 Ctrl+Enter 傳送。"
     },
     "hotkeys": "快捷鍵",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "更新",
         "cancel": "取消"
       }
+    },
+    "customModelOverrides": {
+      "name": "自訂模型覆寫",
+      "desc": "為自訂模型設定模型選擇器別名和上下文視窗大小。"
+    },
+    "customModelAliases": {
+      "placeholder": "別名"
     },
     "customContextLimits": {
       "name": "自訂上下文限制",

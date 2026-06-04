@@ -8,7 +8,7 @@
  * - Persistent query for active chat conversation (eliminates cold-start latency)
  * - Cold-start queries for inline edit, title generation
  * - MessageChannel for message queueing and turn management
- * - Dynamic updates (model, thinking tokens, permission mode, MCP servers)
+ * - Dynamic updates (model, effort level, permission mode, MCP servers)
  */
 
 import type {
@@ -36,6 +36,7 @@ import type {
   ApprovalCallback,
   AskUserQuestionCallback,
   AutoTurnCallback,
+  ChatRewindMode,
   ChatRewindResult,
   ChatRuntimeConversationState,
   ChatRuntimeQueryOptions,
@@ -200,10 +201,7 @@ export class ClaudianService implements ChatRuntime {
     agentManager?: Pick<AppAgentManager, 'setBuiltinAgentNames'>;
     pluginManager?: AppPluginManager;
   } {
-    return this.plugin as ClaudianPlugin & {
-      agentManager?: Pick<AppAgentManager, 'setBuiltinAgentNames'>;
-      pluginManager?: AppPluginManager;
-    };
+    return this.plugin;
   }
 
   constructor(plugin: ClaudianPlugin, services: ClaudeRuntimeServices | McpServerManager) {
@@ -510,10 +508,8 @@ export class ClaudianService implements ChatRuntime {
     const config = this.buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
     this.currentConfig = config;
 
-    // await is intentional: yields to microtask queue so fire-and-forget callers
-    // (e.g. setSessionId → ensureReady) don't synchronously set persistentQuery
     const resumeAtMessageId = this.pendingResumeAt;
-    const options = await this.buildPersistentQueryOptions(
+    const options = this.buildPersistentQueryOptions(
       vaultPath,
       cliPath,
       resumeSessionId,
@@ -648,9 +644,9 @@ export class ClaudianService implements ChatRuntime {
    */
   private getScopedSettings(): ClaudianSettings {
     return ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       this.providerId,
-    ) as unknown as ClaudianSettings;
+    );
   }
 
   private buildQueryOptionsContext(vaultPath: string, cliPath: string): QueryOptionsContext {
@@ -1076,7 +1072,7 @@ export class ClaudianService implements ChatRuntime {
         : undefined;
       const explicitQueryOptions = isChatMessageArray(conversationHistoryOrQueryOptions)
         ? undefined
-        : conversationHistoryOrQueryOptions as QueryOptions | undefined;
+        : conversationHistoryOrQueryOptions;
       return {
         request: turn.request,
         encodedTurn: turn,
@@ -1185,9 +1181,9 @@ export class ClaudianService implements ChatRuntime {
       conversationHistory && conversationHistory.length > 0;
 
     if (noSessionButHasHistory) {
-      const historyContext = buildContextFromHistory(conversationHistory!);
+      const historyContext = buildContextFromHistory(conversationHistory);
       const actualPrompt = stripCurrentNoteContext(prompt);
-      promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory!);
+      promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
 
       // Note: Do NOT call invalidateSession() here. The cold-start will capture
       // a new session ID anyway, and invalidating would break any persistent query
@@ -1525,7 +1521,7 @@ export class ClaudianService implements ChatRuntime {
     }
   }
 
-  private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): string | AsyncGenerator<any> {
+  private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): ReturnType<typeof buildClaudePromptWithImages> {
     return buildClaudePromptWithImages(prompt, images);
   }
 
@@ -1782,10 +1778,15 @@ export class ClaudianService implements ChatRuntime {
     return this.persistentQuery.rewindFiles(userMessageId, { dryRun });
   }
 
-  async rewind(userMessageId: string, assistantMessageId: string): Promise<ChatRewindResult> {
+  async rewind(
+    userMessageId: string,
+    assistantMessageId: string,
+    mode: ChatRewindMode = 'code-and-conversation',
+  ): Promise<ChatRewindResult> {
     return executeClaudeRewind(userMessageId, {
       assistantMessageId,
-      rewindFiles: this.rewindFiles.bind(this),
+      mode,
+      rewindFiles: (id, dryRun) => this.rewindFiles(id, dryRun),
       closePersistentQuery: (reason) => this.closePersistentQuery(reason),
       setPendingResumeAt: (resumeAt) => {
         this.pendingResumeAt = resumeAt;
@@ -1850,7 +1851,7 @@ export class ClaudianService implements ChatRuntime {
   private resolveSDKPermissionMode(mode: PermissionMode): SDKPermissionMode {
     return QueryOptionsBuilder.resolveClaudeSdkPermissionMode(
       mode,
-      getClaudeProviderSettings(this.plugin.settings as unknown as Record<string, unknown>).safeMode,
-    ) as SDKPermissionMode;
+      getClaudeProviderSettings(this.plugin.settings).safeMode,
+    );
   }
 }

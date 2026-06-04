@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "이 시점으로 되감으시겠습니까? 이 메시지 이후의 파일 변경 사항이 되돌려집니다. 수동으로 또는 bash를 통해 편집된 파일에는 영향을 미치지 않습니다.",
+      "confirmMessageConversationOnly": "대화를 이 시점으로 되감으시겠습니까? 파일 변경 사항은 유지됩니다.",
       "confirmButton": "되감기",
       "ariaLabel": "여기로 되감기",
+      "menuConversationOnly": "대화만 되감기",
+      "menuCodeAndConversation": "코드 + 대화 되감기",
       "notice": "되감기 완료: {count}개 파일 복원됨",
+      "noticeConversationOnly": "대화를 되감았습니다. 파일 변경 사항은 유지되었습니다",
       "noticeSaveFailed": "되감기 완료: {count}개 파일 복원됨, 하지만 상태를 저장하지 못했습니다: {error}",
+      "noticeConversationOnlySaveFailed": "대화를 되감았지만 상태를 저장하지 못했습니다: {error}",
       "failed": "되감기 실패: {error}",
       "cannot": "되감기 불가: {error}",
       "unavailableStreaming": "스트리밍 중에는 되감기할 수 없습니다",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Vim 스타일 네비게이션 매핑",
       "desc": "한 줄에 하나의 매핑. 형식: \"map <키> <동작>\" (동작: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Command/Ctrl+Enter로 보내기 필수",
+      "desc": "활성화하면 Enter는 줄바꿈을 삽입합니다. macOS에서는 Command+Enter, Windows와 Linux에서는 Ctrl+Enter로 보냅니다."
     },
     "hotkeys": "단축키",
     "inlineEditHotkey": {
@@ -234,6 +243,13 @@
         "update": "업데이트",
         "cancel": "취소"
       }
+    },
+    "customModelOverrides": {
+      "name": "사용자 정의 모델 재정의",
+      "desc": "사용자 정의 모델의 모델 선택기 별칭과 컨텍스트 창 크기를 설정합니다."
+    },
+    "customModelAliases": {
+      "placeholder": "별칭"
     },
     "customContextLimits": {
       "name": "사용자 정의 컨텍스트 제한",

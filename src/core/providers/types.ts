@@ -110,7 +110,7 @@ export interface AppSessionStorage {
 export interface AppMcpStorage {
   load(): Promise<ManagedMcpServer[]>;
   save(servers: ManagedMcpServer[]): Promise<void>;
-  tryParseClipboardConfig?(text: string): unknown | null;
+  tryParseClipboardConfig?(text: string): unknown;
 }
 
 export interface AppCommandStorage {
@@ -183,14 +183,27 @@ export interface ProviderPathIconSvg {
   path: string;
 }
 
-export interface ProviderMarkupIconSvg {
-  kind: 'markup';
+export interface ProviderSvgPathChild {
+  tag: 'path';
+  attributes: Record<string, string>;
+}
+
+export interface ProviderSvgGroupChild {
+  tag: 'g';
+  attributes: Record<string, string>;
+  children: ProviderSvgPathChild[];
+}
+
+export type ProviderSvgChild = ProviderSvgGroupChild | ProviderSvgPathChild;
+
+export interface ProviderCompositeIconSvg {
+  kind: 'composite';
   viewBox: string;
-  markup: string;
+  children: ProviderSvgChild[];
 }
 
 /** SVG icon descriptor for provider branding in selectors and headers. */
-export type ProviderIconSvg = ProviderPathIconSvg | ProviderMarkupIconSvg;
+export type ProviderIconSvg = ProviderPathIconSvg | ProviderCompositeIconSvg;
 
 /** Extended option with token count for budget-based reasoning controls. */
 export interface ProviderReasoningOption extends ProviderUIOption {
@@ -241,13 +254,24 @@ export interface ProviderChatUIConfig {
   getDefaultReasoningValue(model: string, settings: Record<string, unknown>): string;
 
   /** Context window size in tokens. */
-  getContextWindowSize(model: string, customLimits?: Record<string, number>): number;
+  getContextWindowSize(
+    model: string,
+    customLimits?: Record<string, number>,
+    settings?: Record<string, unknown>,
+  ): number;
 
   /** Whether this is a built-in (default) model vs custom/env model. */
   isDefaultModel(model: string): boolean;
 
   /** Apply model change side effects to settings (defaults, tracking). */
   applyModelDefaults(model: string, settings: unknown): void;
+
+  /** Optional provider hook to discover model-scoped metadata after a model is selected. */
+  prepareModelMetadata?(
+    model: string,
+    settings: Record<string, unknown>,
+    context: { plugin: ClaudianPlugin },
+  ): Promise<void>;
 
   /** Optional hook when the toolbar changes a reasoning selection. */
   applyReasoningSelection?(model: string, value: string, settings: unknown): void;

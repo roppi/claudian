@@ -2,6 +2,13 @@ import '@/providers';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
+import type {
+  ProviderId,
+  TitleGenerationCallback,
+  TitleGenerationResult,
+  TitleGenerationService,
+} from '@/core/providers/types';
+import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 describe('ProviderRegistry', () => {
   beforeEach(() => {
@@ -10,6 +17,10 @@ describe('ProviderRegistry', () => {
       mcpManager: {} as any,
       mcpServerManager: {} as any,
     } as any);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('creates a runtime with the default provider id', () => {
@@ -79,10 +90,20 @@ describe('ProviderRegistry', () => {
     expect(caps.supportsFork).toBe(false);
   });
 
+  it('returns Pi capabilities', () => {
+    const caps = ProviderRegistry.getCapabilities('pi');
+    expect(caps.providerId).toBe('pi');
+    expect(caps.supportsProviderCommands).toBe(true);
+    expect(caps.supportsImageAttachments).toBe(true);
+    expect(caps.supportsTurnSteer).toBe(true);
+    expect(caps.supportsFork).toBe(true);
+  });
+
   it('lists registered provider ids', () => {
     const ids = ProviderRegistry.getRegisteredProviderIds();
     expect(ids).toContain('claude');
     expect(ids).toContain('codex');
+    expect(ids).toContain('pi');
   });
 
   it('filters enabled provider ids using registration metadata', () => {
@@ -102,10 +123,153 @@ describe('ProviderRegistry', () => {
         opencode: { enabled: true },
       },
     })).toEqual(['opencode', 'codex', 'claude']);
+    expect(ProviderRegistry.getEnabledProviderIds({
+      providerConfigs: {
+        codex: { enabled: true },
+        opencode: { enabled: true },
+        pi: { enabled: true },
+      },
+    })).toEqual(['opencode', 'pi', 'codex', 'claude']);
   });
 
   it('returns the display name from provider registration metadata', () => {
     expect(ProviderRegistry.getProviderDisplayName('claude')).toBe('Claude');
     expect(ProviderRegistry.getProviderDisplayName('codex')).toBe('Codex');
   });
+
+  it('routes auto title generation to Claude independently of chat provider state', async () => {
+    const providerCalls: ProviderId[] = [];
+    const originalCreate = ProviderRegistry.createTitleGenerationService.bind(ProviderRegistry);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService')
+      .mockImplementation((plugin: any, providerId?: ProviderId) => {
+        if (!providerId) {
+          return originalCreate(plugin);
+        }
+        providerCalls.push(providerId);
+        return createMockTitleService(providerId);
+      });
+
+    const service = ProviderRegistry.createTitleGenerationService({
+      settings: {
+        titleGenerationModel: '',
+        providerConfigs: {
+          codex: { enabled: true },
+        },
+      },
+    } as any);
+    const callback = jest.fn();
+
+    await service.generateTitle('conv-1', 'hello', callback);
+
+    expect(providerCalls).toEqual(['claude']);
+    expect(callback).toHaveBeenCalledWith('conv-1', {
+      success: true,
+      title: 'claude title',
+    });
+  });
+
+  it('routes explicit title model selections to the owning provider', async () => {
+    const providerCalls: ProviderId[] = [];
+    const originalCreate = ProviderRegistry.createTitleGenerationService.bind(ProviderRegistry);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService')
+      .mockImplementation((plugin: any, providerId?: ProviderId) => {
+        if (!providerId) {
+          return originalCreate(plugin);
+        }
+        providerCalls.push(providerId);
+        return createMockTitleService(providerId);
+      });
+
+    const service = ProviderRegistry.createTitleGenerationService({
+      settings: {
+        titleGenerationModel: DEFAULT_CODEX_PRIMARY_MODEL,
+        providerConfigs: {
+          codex: { enabled: true },
+        },
+      },
+    } as any);
+    const callback = jest.fn();
+
+    await service.generateTitle('conv-1', 'hello', callback);
+
+    expect(providerCalls).toEqual(['codex']);
+    expect(callback).toHaveBeenCalledWith('conv-1', {
+      success: true,
+      title: 'codex title',
+    });
+  });
+
+  it('suppresses stale callbacks when a newer title generation replaces the old one', async () => {
+    const originalCreate = ProviderRegistry.createTitleGenerationService.bind(ProviderRegistry);
+    const claudeService = createDeferredTitleService();
+    const codexService = createMockTitleService('codex');
+
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService')
+      .mockImplementation((plugin: any, providerId?: ProviderId) => {
+        if (!providerId) {
+          return originalCreate(plugin);
+        }
+        return providerId === 'claude' ? claudeService : codexService;
+      });
+
+    const plugin = {
+      settings: {
+        titleGenerationModel: 'sonnet',
+        providerConfigs: {
+          codex: { enabled: true },
+        },
+      },
+    } as any;
+    const service = ProviderRegistry.createTitleGenerationService(plugin);
+    const callback = jest.fn();
+
+    const first = service.generateTitle('conv-1', 'first', callback);
+    plugin.settings.titleGenerationModel = DEFAULT_CODEX_PRIMARY_MODEL;
+    await service.generateTitle('conv-1', 'second', callback);
+    await claudeService.resolve({ success: true, title: 'stale title' });
+    await first;
+
+    expect(claudeService.cancel).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith('conv-1', {
+      success: true,
+      title: 'codex title',
+    });
+  });
 });
+
+function createMockTitleService(providerId: ProviderId): TitleGenerationService {
+  return {
+    cancel: jest.fn(),
+    generateTitle: jest.fn(async (conversationId, _userMessage, callback) => {
+      await callback(conversationId, {
+        success: true,
+        title: `${providerId} title`,
+      });
+    }),
+  };
+}
+
+function createDeferredTitleService(): TitleGenerationService & {
+  resolve: (result: TitleGenerationResult) => Promise<void>;
+} {
+  let callback: TitleGenerationCallback | null = null;
+  let conversationId = '';
+  let resolvePromise: (() => void) | null = null;
+  const done = new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+  });
+
+  return {
+    cancel: jest.fn(),
+    generateTitle: jest.fn(async (nextConversationId, _userMessage, nextCallback) => {
+      conversationId = nextConversationId;
+      callback = nextCallback;
+      await done;
+    }),
+    resolve: async (result) => {
+      await callback?.(conversationId, result);
+      resolvePromise?.();
+    },
+  };
+}

@@ -19,8 +19,7 @@ import {
   resolveClaudeSettingSources,
 } from '../settings';
 import {
-  resolveAdaptiveEffortLevel,
-  resolveThinkingTokens,
+  resolveEffortLevel,
 } from '../types/models';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
@@ -101,7 +100,7 @@ export class QueryOptionsBuilder {
     ctx: QueryOptionsContext,
     externalContextPaths?: string[]
   ): PersistentQueryConfig {
-    const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
+    const claudeSettings = getClaudeProviderSettings(ctx.settings);
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -121,8 +120,7 @@ export class QueryOptionsBuilder {
 
     return {
       model: ctx.settings.model,
-      thinkingTokens: resolveThinkingTokens(ctx.settings.model, ctx.settings.thinkingBudget),
-      effortLevel: resolveAdaptiveEffortLevel(ctx.settings.model, ctx.settings.effortLevel),
+      effortLevel: resolveEffortLevel(ctx.settings.model, ctx.settings.effortLevel),
       permissionMode: ctx.settings.permissionMode,
       sdkPermissionMode,
       systemPromptKey: computeSystemPromptKey(systemPromptSettings),
@@ -278,7 +276,7 @@ export class QueryOptionsBuilder {
     model: string,
     abortController?: AbortController,
   ): { options: Options; claudeSettings: ReturnType<typeof getClaudeProviderSettings> } {
-    const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
+    const claudeSettings = getClaudeProviderSettings(ctx.settings);
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -298,9 +296,6 @@ export class QueryOptionsBuilder {
         PATH: ctx.enhancedPath,
       },
       includePartialMessages: true,
-      managedSettings: {
-        remoteControlAtStartup: false,
-      },
     };
 
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings);
@@ -314,19 +309,11 @@ export class QueryOptionsBuilder {
     settings: ClaudianSettings,
     model: string
   ): void {
-    const effortLevel = resolveAdaptiveEffortLevel(model, settings.effortLevel);
-    if (effortLevel !== null) {
-      options.thinking = { type: 'adaptive' };
-      // SDK runtime accepts `xhigh` on Opus 4.7+ and silently falls back to
-      // `high` elsewhere, but its type definition lags our local EffortLevel.
-      options.effort = effortLevel as Options['effort'];
-      return;
-    }
-
-    const thinkingTokens = resolveThinkingTokens(model, settings.thinkingBudget);
-    if (thinkingTokens !== null) {
-      options.maxThinkingTokens = thinkingTokens;
-    }
+    const effortLevel = resolveEffortLevel(model, settings.effortLevel);
+    options.thinking = { type: 'adaptive' };
+    // SDK runtime accepts `xhigh` on Opus 4.7+ and silently falls back to
+    // `high` elsewhere, but its type definition lags our local EffortLevel.
+    options.effort = effortLevel;
   }
 
   private static pathsChanged(a?: string[], b?: string[]): boolean {

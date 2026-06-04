@@ -8,24 +8,25 @@ export function extractAssistantText(
   if (message.type !== 'assistant') {
     return '';
   }
-  const inner = message.message;
-  if (!inner || typeof inner !== 'object') {
+
+  const payload = message.message;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return '';
   }
-  const content = (inner as { content?: unknown }).content;
+
+  const content = (payload as { content?: unknown }).content;
   if (!Array.isArray(content)) {
     return '';
   }
 
-  return content
-    .filter((block): block is { type: 'text'; text: string } =>
-      !!block &&
-      typeof block === 'object' &&
-      'type' in block &&
-      'text' in block &&
-      block.type === 'text' &&
-      typeof block.text === 'string'
-    )
+  return (content as unknown[])
+    .filter((block): block is { type: 'text'; text: string } => {
+      if (!block || typeof block !== 'object' || Array.isArray(block)) {
+        return false;
+      }
+      const record = block as Record<string, unknown>;
+      return record.type === 'text' && typeof record.text === 'string';
+    })
     .map((block) => block.text)
     .join('');
 }
